@@ -520,6 +520,8 @@ These tests are also run in CI (see the `test-config-editor-rust` job in `ci.yml
 
 See [docs/macos-code-signing.md](docs/macos-code-signing.md) for full setup guide.
 
+**Notarization 403 "agreement missing or expired":** Apple periodically updates the Developer Program License Agreement and freezes notarization until the team's Account Holder accepts the new terms. The CI step fails with `HTTP status code: 403. A required agreement is missing or has expired`. Fix: Account Holder logs into [App Store Connect](https://appstoreconnect.apple.com), accepts pending agreements (usually shown as a banner or under Agreements/Tax/Banking), then re-runs the failed CI job. No code change needed.
+
 ### GPG Signing Key for Linux distributions
 
 In use, details pending
@@ -684,6 +686,8 @@ Save button → saveToDevice()
 **CI validates** that all `firmware/dev/config*.json` files pass the schema, and that `types.generated.ts` is up to date.
 
 **Serde still silently drops unknown fields** — if a field exists in TypeScript but not in the Rust struct, it is deserialized away and the re-serialized output omits it. Round-trip tests in `config.rs` catch this. The schema is the reference the Rust structs are held against.
+
+**The schema `title` field is load-bearing.** `json-schema-to-typescript` derives the root TypeScript interface name from `title` (PascalCased). Today: `"MIDI Captain Config"` → `MIDICaptainConfig`. Changing the title also renames the interface and breaks every import in `types.ts`. Keep the title short and stable; put product/branding text in `description` where it has no mechanical effect.
 
 ### Config Normalization
 
@@ -918,6 +922,10 @@ Releases use **draft releases** for pre-publish testing:
 5. Publish via GitHub UI when satisfied; delete draft + tag if not
 
 **Tauri binary versions are baked at build time** (in `tauri.conf.json` via jq patch before `cargo tauri build`). They cannot be patched post-build due to code signing. This is why CI must run on the tag — the version string comes from `git describe`.
+
+**Beta tags (`v1.x.0-betaN`) are usually unnecessary** — the draft release IS the test mechanism. Only use beta tags when (a) you expect multiple test cycles before final, or (b) you want a *published* (non-draft) beta release for external testers. For solo dev, tag `v1.x.0` directly, test the draft, publish when ready.
+
+**Promoting a beta to final requires re-tagging the same commit.** Tauri binaries and the firmware `VERSION` file have the version string baked in at build time. If you tagged `v1.10.0-beta1` and want to ship as `v1.10.0`, tag the same commit as `v1.10.0` and let CI rebuild — otherwise the published artifacts will still say `1.10.0-beta1` internally.
 
 ### Merging Release Branches
 
