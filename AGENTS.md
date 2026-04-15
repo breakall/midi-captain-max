@@ -259,6 +259,20 @@ For historical context on reverse engineering, see [docs/midicaptain_reverse_eng
 - ST7789 240×240 display (same params as STD10/Mini6)
 - No encoder or expression inputs
 
+### DUO2 (2-switch)
+- 6 NeoPixels (2 switches × 3 LEDs) on GP7
+- 2 switch inputs: GP11 (KEY0, bottom), GP9 (KEY1, top)
+- 4 DIP switches on GP0–GP3 for mode/page selection
+- **No ST7789 display.** Instead a 3-digit 7-segment LCD driven via UART (GP4 TX, GP5 RX, 9600 baud) using a proprietary frame protocol: `[0xA5, seg1, seg2, seg3, 0x5A]` sent 3× with 40ms inter-frame delay. See `firmware/dev/devices/duo2.py` for the encoding.
+- No encoder or expression inputs
+
+### ONE1 (1-switch)
+- 3 NeoPixels (1 switch × 3 LEDs) on GP7
+- 1 switch input: GP11 (KEY0)
+- 2 DIP switches on GP2–GP3 for mode/page selection
+- Same UART segmented LCD as DUO2 (GP4/GP5, 9600 baud, identical 5-byte frame protocol)
+- No encoder or expression inputs
+
 ### 5-pin DIN MIDI
 
 - **TX pin**: `board.GP16`, **RX pin**: `board.GP17`, **baud**: `31250`, **timeout**: `0.003`
@@ -350,6 +364,28 @@ Update ALL of these files (missed items caused real bugs across DUO2/ONE1 work):
 
 ## Testing Strategy
 
+### Running All Tests
+
+From the repo root, run every test suite and the type-freshness check in one go:
+
+```bash
+./tools/test-all.sh
+```
+
+This runs pytest, cargo test, svelte-check, regenerates types from the schema, and fails if `types.generated.ts` ended up out of date.
+
+Individual suites:
+
+```bash
+python3 -m pytest tests/                                    # 232 Python tests
+python3 -m pytest tests/test_schema.py -v                   # schema validation only
+cd config-editor/src-tauri && cargo test                    # 32 Rust tests
+cd config-editor && npm run check                           # TypeScript / Svelte
+cd config-editor && npm run generate:types                  # regenerate types from schema
+```
+
+The `generate:types` step is also enforced in CI: if `types.generated.ts` differs after running it, the build fails with instructions to commit the regenerated file.
+
 ### On-Device Testing
 - Copy code to MIDICAPTAIN volume, observe behavior via serial console
 - Use `screen` with auto-reconnect loop for serial monitoring. See docs/screen-cheatsheet.md for usage tips.
@@ -389,8 +425,12 @@ Device config files (`config*.json`) are included dynamically via glob in both p
 ### Desktop Testing (Unit)
 - **pytest** with CircuitPython hardware mocks in `tests/mocks/`
 - Mocks cover: `board`, `digitalio`, `neopixel`, `displayio`, `busio`, `rotaryio`, `analogio`, `usb_midi`, `terminalio`
-- Tests: `test_button_state.py`, `test_config.py`, `test_colors.py`, `test_neopixel_mock.py`, `test_switch_mock.py`, `test_usb_drive_name.py`
-- Run: `pytest` from project root
+- Firmware behavior tests: `test_button_state.py`, `test_config.py`, `test_colors.py`, `test_neopixel_mock.py`, `test_switch_mock.py`, `test_usb_drive_name.py`
+- Schema-driven tests (require `jsonschema` from `requirements-dev.txt`):
+  - `test_schema.py` — validates all shipped configs against `config.schema.json` plus negative tests for every constraint type
+  - `test_config_cross_fields.py` — rules JSON Schema can't express (button count vs device, encoder/expression device support, min/max/initial relationships, states/keytimes alignment)
+  - `test_python_schema_sync.py` — AST-walks `core/config.py` to catch firmware reading fields not defined in the schema; also asserts `STATE_OVERRIDE_FIELDS` and `VALID_TYPES` match the schema
+- Run: `python3 -m pytest tests/` from repo root
 
 ### Emulator Testing (Wokwi)
 
@@ -446,7 +486,7 @@ NeoPixel/display visual rendering (code runs, no visual output), GP23/24/25 butt
 - **`rp2040js-circuitpython` is a dead end** — has no CLI argument parsing, no `--image`/`--fs` flags, no filesystem injection. PR #33 was based on non-existent features.
 
 ### Rust Tests (Config Editor)
-Unit tests for the Tauri backend live in `config-editor/src-tauri/src/` (in `config.rs` and `device.rs`).
+Unit tests for the Tauri backend live in `config-editor/src-tauri/src/` (in `config.rs` and `device.rs`). Notably, `test_roundtrip_all_shipped_configs` parses every `firmware/dev/config*.json` file as both `serde_json::Value` and `MidiCaptainConfig`, then asserts every key survives serialize → deserialize through the typed struct. This catches "Rust struct missing a field" silent data loss for any new shipped config without needing a per-feature test.
 
 **Requires GTK system libraries.** Install once per machine before running:
 
@@ -546,7 +586,8 @@ Track features, bugs, and future work via [GitHub Issues](https://github.com/MC-
 - [ ] Release workflow DRY: find/rename/warn pattern in `Prepare release assets` repeats 3× (DMG, MSI, NSIS) — could be a shell function
 - [ ] Windows Signing Cert
 - [x] NANO4 device support (4-switch variant) — hardware probed 2026-04-01, device module + firmware + config editor
-- [ ] Support for 1/2-switch variants
+- [x] DUO2 device support (2-switch variant) — UART segmented LCD reverse-engineered, device module + firmware + config editor
+- [x] ONE1 device support (1-switch variant) — same UART display protocol as DUO2, device module + firmware + config editor
 - [ ] Custom display layouts
 - [ ] SysEx protocol documentation
 - [ ] Keytimes / multi-press cycling
@@ -594,14 +635,16 @@ Save button → saveToDevice()
 | `config-editor/src/routes/+page.svelte` | App shell: device selector, save/reload/reset, ⌘S shortcut |
 | `config-editor/src/lib/formStore.ts` | Form state, undo/redo history (50 items), `updateField`, `normalizeConfig`, `loadConfig` |
 | `config-editor/src/lib/stores.ts` | UI state: devices, selectedDevice, hasUnsavedChanges, isLoading |
-| `config-editor/src/lib/types.ts` | TypeScript interfaces — must stay in sync with Rust structs |
+| `config.schema.json` | JSON Schema (draft-07) — single source of truth for the config format |
+| `config-editor/src/lib/types.generated.ts` | Auto-generated TypeScript types from `config.schema.json` (run `npm run generate:types`) |
+| `config-editor/src/lib/types.ts` | Re-exports generated types + UI-only types (`DetectedDevice`, `ConfigError`, `BUTTON_COLORS`) |
 | `config-editor/src/lib/validation.ts` | Client-side validators; `validateConfig()` called before every save |
 | `config-editor/src/lib/api.ts` | Tauri `invoke()` wrappers for all IPC calls |
 | `config-editor/src/lib/components/ConfigForm.svelte` | Toolbar (Undo/Redo/View JSON/Save), keyboard shortcuts |
 | `config-editor/src/lib/components/ButtonRow.svelte` | Per-button fields; uses `onUpdate` callback prop |
 | `config-editor/src/lib/components/ButtonsSection.svelte` | Iterates buttons, wires `handleButtonUpdate → updateField` |
 | `config-editor/src/lib/components/DisplaySection.svelte` | Display text size settings |
-| `config-editor/src-tauri/src/config.rs` | Rust config structs + validation; must mirror `types.ts` |
+| `config-editor/src-tauri/src/config.rs` | Rust config structs + validation; must mirror `config.schema.json` |
 | `config-editor/src-tauri/src/commands.rs` | Tauri commands: read/write/validate config, restart device, path security |
 | `config-editor/src-tauri/src/device.rs` | USB device detection and watcher (cross-platform) |
 
@@ -629,13 +672,18 @@ Save button → saveToDevice()
 - `"perUser"` (default): installs to `AppData` — deep, hard to find
 - `"both"`: prompts user to choose per-machine (Program Files) or per-user, defaulting to Program Files
 
-### Critical: Rust ↔ TypeScript Type Sync
+### Critical: Schema-Driven Config Types
 
-**Serde silently drops unknown fields** — if a field exists in TypeScript but not in the Rust struct, it is deserialized away and the re-serialized output omits it. No error, no warning. This is how all multi-type button fields (`type`, `note`, `velocity_on`, `velocity_off`, `program`, `pc_step`, `keytimes`, `states`), `display`, `usb_drive_name`, and `dev_mode` were silently stripped on save in earlier versions.
+**Single source of truth**: `config.schema.json` (JSON Schema draft-07) at the repo root defines every config field, type, constraint, and default. When adding or changing a config field:
 
-**Rule**: whenever you add a field to `types.ts`, add the matching field to the Rust `ButtonConfig`/`MidiCaptainConfig` struct in `config.rs` with `#[serde(skip_serializing_if = "Option::is_none")]`.
+1. **Edit `config.schema.json`** — this is the only place where the config format is defined
+2. **Regenerate TypeScript types**: `cd config-editor && npm run generate:types` — produces `src/lib/types.generated.ts`
+3. **Update the Rust struct** in `config-editor/src-tauri/src/config.rs` — add the matching field with `#[serde(skip_serializing_if = "Option::is_none")]`
+4. **Update Python firmware** in `firmware/dev/core/config.py` if the field is used at runtime
 
-**Detection**: add a round-trip test in `config.rs` that parses JSON containing the field and asserts the field survives re-serialization. See existing `test_roundtrip_*` tests.
+**CI validates** that all `firmware/dev/config*.json` files pass the schema, and that `types.generated.ts` is up to date.
+
+**Serde still silently drops unknown fields** — if a field exists in TypeScript but not in the Rust struct, it is deserialized away and the re-serialized output omits it. Round-trip tests in `config.rs` catch this. The schema is the reference the Rust structs are held against.
 
 ### Config Normalization
 
@@ -659,13 +707,21 @@ Save button → saveToDevice()
 
 ### Validation Notes
 
-Client-side validation (`validation.ts`) must match server-side Rust validation (`config.rs`). Known gaps that were fixed:
-- Button/encoder/expression **channel** fields (0-15): now validated in both
-- **Encoder push** button: was entirely unvalidated in TypeScript
-- **Expression pedal min/max range**: was missing in TypeScript
-- **Encoder initial** value: must be within min/max range
-- **Button label max**: 6 chars in UI/TypeScript, was incorrectly 8 in Rust (now fixed to 6)
-- **Encoder/expression labels**: max 8 chars (Rust), not validated in TypeScript (acceptable — UI has maxlength inputs)
+`config.schema.json` is the canonical reference for all constraints. Client-side validation (`validation.ts`) and server-side Rust validation (`config.rs`) should both match the schema. Key constraints:
+- **Button labels**: max 6 chars, pattern `[\w \-]+`
+- **Encoder/expression labels**: max 8 chars
+- **Channels**: 0-15 (displayed 1-16)
+- **MIDI bytes** (cc, note, program, velocity, etc.): 0-127
+- **pc_step**: 1-127
+- **keytimes**: 1-99
+- **flash_ms**: 50-5000
+
+**Cross-field rules** that JSON Schema can't express (enforced by Rust + verified by `tests/test_config_cross_fields.py`):
+- Button array length must match device type (std10=10, mini6=6, nano4=4, duo2=2, one1=1)
+- Encoder and expression are STD10-only
+- `encoder.initial` must be in `[encoder.min, encoder.max]`
+- `expression.max >= expression.min`
+- `states.length` should match `keytimes` when `states` is present
 
 ### `mode` vs `off_mode` Per Button Type
 
@@ -673,54 +729,28 @@ From firmware `code.py`:
 - **`mode` (toggle/momentary)**: used by CC and Note types only. PC types only fire on `pressed`, so mode is irrelevant. GUI shows Switch Mode only for `isCC || isNote`.
 - **`off_mode` (dim/off)**: LED appearance when button is "off" — applies to all types. GUI always shows it.
 
+### Accessibility Conventions
+
+The config editor is held to **0 svelte-check warnings**. When adding form controls:
+
+- Every `<label>` must associate with its control. Use `<label for="x">…</label>` paired with `id="x"` on the input. The wrap-style `<label>…<input/></label>` is also fine.
+- For multi-instance components (rendered N times, like `ButtonRow`), derive unique IDs from the prop index. `ButtonRow` exposes `fieldId(field)` and `stateFieldId(si, field)` helpers — keep using them when adding fields.
+- Use Svelte 5 event syntax: `onclick`, `onblur`, `onchange` — never `on:click` etc.
+- Modal dialogs need `role="dialog"`, `aria-modal="true"`, `aria-labelledby`, `tabindex="-1"`, and an Escape key handler.
+- Backdrops with click handlers need `role="presentation"` + `tabindex="-1"` + an `onkeydown` handler (Enter/Space to activate).
+- If a `$state` variable intentionally captures a prop's initial value (like `Accordion.svelte`'s `defaultOpen`), document the intent and use `// svelte-ignore state_referenced_locally`.
+
 ---
 
 ## Config JSON Schema
 
-Full button config fields:
-```json
-{
-  "label": "string (max 6 chars)",
-  "color": "red|green|blue|yellow|cyan|magenta|orange|purple|white",
-  "type": "cc|note|pc|pc_inc|pc_dec",
-  "mode": "toggle|momentary",
-  "off_mode": "dim|off",
-  "channel": 0,
-  "cc": 0,
-  "cc_on": 127,
-  "cc_off": 0,
-  "note": 60,
-  "velocity_on": 127,
-  "velocity_off": 0,
-  "program": 0,
-  "pc_step": 1,
-  "flash_ms": 200,
-  "keytimes": 3,
-  "states": [
-    { "cc": 1, "cc_on": 127, "color": "red", "label": "ONE" }
-  ]
-}
-```
-
-Top-level config fields:
-```json
-{
-  "device": "std10|mini6|nano4|duo2|one1",
-  "global_channel": 0,
-  "usb_drive_name": "MIDICAPTAIN",
-  "dev_mode": false,
-  "buttons": [...],
-  "encoder": { "enabled": true, "cc": 11, "label": "ENC", "min": 0, "max": 127, "initial": 64, "steps": null, "channel": 0, "push": { "enabled": true, "cc": 14, "label": "PUSH", "mode": "toggle|momentary", "cc_on": 127, "cc_off": 0, "channel": 0 } },
-  "expression": { "exp1": { "enabled": true, "cc": 12, "label": "EXP1", "min": 0, "max": 127, "polarity": "normal|inverted", "threshold": 2, "channel": 0 }, "exp2": {...} },
-  "display": { "button_text_size": "small|medium|large", "status_text_size": "small|medium|large", "expression_text_size": "small|medium|large" }
-}
-```
+The config format is fully defined in [`config.schema.json`](config.schema.json) (JSON Schema draft-07). This is the single source of truth — see "Schema-Driven Config Types" above for the workflow when adding fields.
 
 **`usb_drive_name`** — label applied to the FAT32 volume when USB is enabled. Defaults to `"MIDICAPTAIN"`. Configurable in the GUI "Device Settings" section. Validation rules (enforced by `validate_usb_drive_name()` in `core/config.py`): max 11 chars, uppercase alphanumeric + underscore only, auto-uppercased, special chars stripped, empty/all-invalid falls back to `"MIDICAPTAIN"`.
 
 Tooling support for custom names:
 - **`deploy.sh`** reads `usb_drive_name` from `config.json`, `config-one1.json`, `config-duo2.json`, `config-mini6.json`, and `config-nano4.json` and adds them to the mount-point search. Candidate order: `CIRCUITPY`, `MIDICAPTAIN`, then any `usb_drive_name` values found in local configs. Checked under `/Volumes/`, `/media/$USER/`, `/run/media/$USER/`.
-- **GUI config editor** detects devices by volume name *and* config content. Known names (`CIRCUITPY`, `MIDICAPTAIN`) are always accepted. Custom-named volumes are accepted only when the config.json inside them (a) has `"device": "std10"` or `"mini6"`, and (b) the `usb_drive_name` in that config matches the actual volume name (case-insensitive). This cross-check prevents a stray config.json on an unrelated volume from being treated as a device. The same cross-check applies in `validate_device_path()` (path security gate in `commands.rs`).
+- **GUI config editor** detects devices by volume name *and* config content. Known names (`CIRCUITPY`, `MIDICAPTAIN`) are always accepted. Custom-named volumes are accepted only when the config.json inside them (a) has a known `"device"` value (`"std10"`, `"mini6"`, `"nano4"`, `"duo2"`, or `"one1"`), and (b) the `usb_drive_name` in that config matches the actual volume name (case-insensitive). This cross-check prevents a stray config.json on an unrelated volume from being treated as a device. The same cross-check applies in `validate_device_path()` (path security gate in `commands.rs`).
 
 **`dev_mode`** — boolean controlling USB drive mount behaviour at boot:
 
@@ -849,9 +879,11 @@ if enable_usb_drive:
 | `firmware/dev/core/config.py` | Config loading; `get_usb_drive_name()`, `validate_usb_drive_name()`, `get_dev_mode()`, `get_display_config()`; `STATE_OVERRIDE_FIELDS` |
 | `firmware/dev/core/button.py` | `ButtonState` class: toggle/momentary mode, keytimes cycling |
 | `firmware/dev/core/colors.py` | Color palette and `get_off_color()` utilities |
-| `firmware/dev/devices/std10.py` | STD10 hardware constants |
-| `firmware/dev/devices/mini6.py` | Mini6 hardware constants |
-| `firmware/dev/devices/nano4.py` | NANO4 hardware constants |
+| `firmware/dev/devices/std10.py` | STD10 hardware constants (10 switches, encoder, expression, ST7789 display) |
+| `firmware/dev/devices/mini6.py` | Mini6 hardware constants (6 switches, ST7789 display) |
+| `firmware/dev/devices/nano4.py` | NANO4 hardware constants (4 switches, ST7789 display) |
+| `firmware/dev/devices/duo2.py` | DUO2 hardware constants (2 switches, DIP switches, UART segmented LCD) |
+| `firmware/dev/devices/one1.py` | ONE1 hardware constants (1 switch, DIP switches, UART segmented LCD) |
 | `firmware/original_helmut/code.py` | Helmut's original firmware (reference only, DO NOT MODIFY) |
 | `tools/deploy.sh` | Dev deploy to device (rsync, VERSION, device detection) |
 | `docs/hardware-reference.md` | Verified hardware specs, auto-detection docs |
@@ -861,11 +893,13 @@ if enable_usb_drive:
 | `.github/workflows/release.yml` | Create GitHub Release on version tag |
 | `config-editor/src/routes/+page.svelte` | App shell: device selector, save/reload/reset |
 | `config-editor/src/lib/formStore.ts` | Form state, undo/redo, `updateField`, `normalizeConfig`, `loadConfig` |
-| `config-editor/src/lib/types.ts` | TypeScript config interfaces — must stay in sync with Rust structs |
+| `config.schema.json` | JSON Schema (draft-07) — single source of truth for config format |
+| `config-editor/src/lib/types.generated.ts` | Auto-generated TypeScript types from schema (`npm run generate:types`) |
+| `config-editor/src/lib/types.ts` | Re-exports generated types + UI-only types (`DetectedDevice`, `ConfigError`, `BUTTON_COLORS`) |
 | `config-editor/src/lib/validation.ts` | Client-side validation; must mirror Rust validation in `config.rs` |
 | `config-editor/src/lib/components/ButtonRow.svelte` | Per-button form row; `onUpdate` callback prop |
 | `config-editor/src/lib/components/DeviceSection.svelte` | Device type, global channel, USB drive name, and dev mode fields |
-| `config-editor/src-tauri/src/config.rs` | Rust config structs + validation + round-trip tests |
+| `config-editor/src-tauri/src/config.rs` | Rust config structs + validation + round-trip tests; must mirror `config.schema.json` |
 | `config-editor/src-tauri/src/commands.rs` | Tauri IPC commands: read/write/validate, path security |
 | `config-editor/src-tauri/src/device.rs` | USB device detection and hot-plug watcher |
 
@@ -900,6 +934,7 @@ GitHub's "Rebase and merge" UI option **rewrites commit SHAs** even when a fast-
 - **CI triggers**: branch pushes + tag pushes (`v*`). Tags needed for clean version injection.
 - **Release triggers**: tag pushes only (`v*`). Creates draft releases.
 - **Artifact flow**: CI uploads (`actions/upload-artifact@v7`), release downloads (`actions/download-artifact@v7`). These are different actions — don't confuse them (easy mistake).
+- **Config validation**: The `lint` job validates all `firmware/dev/config*.json` files against `config.schema.json` (via `pytest` + `jsonschema`) and checks that `types.generated.ts` is up to date.
 - **Firmware VERSION patching**: Release workflow patches `/VERSION` inside the firmware zip with the clean tag, since the CI-built VERSION contains a `git describe` string.
 - **Linux CI deps**: `libudev-dev` required by the `serialport` crate. Cached via `awalsh128/cache-apt-pkgs-action`.
 
