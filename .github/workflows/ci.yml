@@ -218,19 +218,29 @@ jobs:
       - name: Upload zip artifact
         uses: actions/upload-artifact@v7
         with:
-          name: firmware-zip
-          path: dist/*.zip
+          # `archive: false` skips GitHub's outer zip wrapper — our payload is
+          # already a zip. The `name:` input is ignored in this mode; the
+          # artifact name is taken from the file's basename, which keeps the
+          # versioned `midicaptain-firmware-<ver>.zip` contract that
+          # release.yml expects.
+          path: dist/midicaptain-firmware-${{ needs.lint.outputs.version }}.zip
+          archive: false
           retention-days: 90
 
   build-config-editor-macos:
     name: Build Config Editor (macOS)
     runs-on: macos-latest
     timeout-minutes: 30
-    needs: lint
+    needs: [lint, build-zip]
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v6
+
+      - name: Stage firmware for Config Editor
+        uses: ./.github/actions/stage-firmware-for-editor
+        with:
+          version: ${{ needs.lint.outputs.version }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -345,11 +355,16 @@ jobs:
     name: Build Config Editor (Windows)
     runs-on: windows-latest
     timeout-minutes: 30
-    needs: lint
+    needs: [lint, build-zip]
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v6
+
+      - name: Stage firmware for Config Editor
+        uses: ./.github/actions/stage-firmware-for-editor
+        with:
+          version: ${{ needs.lint.outputs.version }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6

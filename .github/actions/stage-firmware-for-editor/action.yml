@@ -1,0 +1,25 @@
+name: Stage firmware for Config Editor
+description: Downloads the firmware-zip artifact straight into the Tauri resources directory.
+
+inputs:
+  version:
+    description: Firmware version string (matches the artifact filename uploaded by build-zip).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Download firmware into Tauri resources
+      uses: actions/download-artifact@v7
+      with:
+        # build-zip uploaded with `archive: false`, so the artifact name is the
+        # literal filename (`upload-artifact/action.yml#52`):
+        # `midicaptain-firmware-<ver>.zip`. download-artifact then auto-extracts
+        # that zip's *contents* into `path` — exactly what we need, no
+        # explicit unzip step required.
+        name: midicaptain-firmware-${{ inputs.version }}.zip
+        path: config-editor/src-tauri/resources/firmware
+
+    - name: Confirm firmware contents
+      shell: bash
+      run: ls -la config-editor/src-tauri/resources/firmware/
