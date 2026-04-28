@@ -50,10 +50,7 @@ try:
 
     # Enable USB HID only if at least one button uses type="hid".
     # This keeps the USB descriptor clean for MIDI-only setups.
-    for btn in cfg.get("buttons", []):
-        if btn.get("type") == "hid":
-            hid_enabled = True
-            break
+    hid_enabled = any(btn.get("type") == "hid" for btn in cfg.get("buttons", []))
 except Exception:
     # If config fails to load, use safe defaults (performance mode, no HID)
     pass

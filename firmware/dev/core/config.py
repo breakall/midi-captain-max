@@ -83,6 +83,7 @@ def validate_button(btn, index=0, global_channel=None):
         - "pc": Program Change fixed
         - "pc_inc": Program Change increment
         - "pc_dec": Program Change decrement
+        - "hid": USB HID keyboard/mouse event
     """
     if global_channel is not None:
         default_channel = global_channel

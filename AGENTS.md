@@ -610,6 +610,7 @@ Track features, bugs, and future work via [GitHub Issues](https://github.com/MC-
 - [x] NANO4 device support (4-switch variant) — hardware probed 2026-04-01, device module + firmware + config editor
 - [x] DUO2 device support (2-switch variant) — UART segmented LCD reverse-engineered, device module + firmware + config editor
 - [x] ONE1 device support (1-switch variant) — same UART display protocol as DUO2, device module + firmware + config editor
+- [x] USB HID keyboard/mouse button type (`"hid"`) — OEM key names, modifiers, press/release/send/delay actions, mouse buttons, keytimes overrides (2026-04-28)
 - [ ] Custom display layouts
 - [ ] SysEx protocol documentation
 - [ ] Keytimes / multi-press cycling
@@ -850,10 +851,31 @@ For each button press/release, `dispatch_button(btn_num, pressed, btn_config, bt
 - `"pc"` + pressed only → sends ProgramChange, calls `flash_pc_button`
 - `"pc_inc"` + pressed only → increments `pc_values[channel]`, sends PC, flashes
 - `"pc_dec"` + pressed only → decrements, sends PC, flashes
+- `"hid"` + pressed only → calls `dispatch_hid(keyboard, mouse, action, key, modifier, delay_ms)`, flashes LED
 
 `pc_values` is a 16-element array (one per MIDI channel), shared across all pc_inc/dec buttons on that channel.
 
 Keytimes: `btn_state.advance_keytime()` is called before reading `state_cfg`, so per-state overrides are applied from `btn_config["states"][keytime_index]` via `get_button_state_config()`.
+
+### HID Button Type
+
+USB HID (keyboard + mouse) messages are supported via the `"hid"` message type. Implementation:
+
+- **`firmware/dev/core/hid.py`**: `KEY_TABLE` (OEM key names → USB HID keycodes), `MODIFIER_TABLE`, `dispatch_hid(keyboard, mouse, action, key, modifier, delay_ms)`.
+- **`firmware/dev/lib/adafruit_hid/`**: Minimal adafruit_hid library (Keyboard, Keycode, Mouse) written for CP 7.x. Mouse button bitmasks (0x01, 0x02, 0x04) are **hardcoded** in `hid.py` — do not `from adafruit_hid.mouse import Mouse` inside the hot dispatch path, as CP 7.x does a filesystem scan per import call.
+- **`boot.py`**: HID is only enabled if `any(btn.get("type") == "hid" for btn in buttons)`. Uses `usb_hid.enable((keyboard, mouse))` before USB initializes. This keeps the USB descriptor clean (no surprise HID device) for MIDI-only setups.
+- **Flash feedback**: HID buttons flash their LED briefly on press (same `hid_flash_timers[]` + `_expire_flash_timers()` pattern as PC buttons).
+- **`dispatch_hid()` is intentionally single-action**: one call = one action. This matches the current single-message-per-press architecture. When multi-action-per-press is added, the call site in `handle_switches()` should iterate a list of action dicts and call `dispatch_hid()` once per item — the function signature stays stable.
+
+**HID config fields** (all on ButtonConfig and StateOverride):
+- `hid_action`: "send" | "press" | "release" | "delay" (default: "send")
+- `hid_key`: OEM key name string, e.g. "A", "F1", "Space", "Mouse_L", "all"
+- `hid_modifier`: "ctrl" | "shift" | "alt" | "option" | "windows" (optional)
+- `hid_delay_ms`: 1-5000 ms (only used when action="delay")
+
+**Key name mapping** (case-insensitive): A-Z, 0-9, F1-F12, Mouse_L, Mouse_R, Space, Esc, Caps, Right, Left, Up, Down, End, Del, PageUp, PageDown, Enter, Pause, Table (=Tab), BackSpace, Home, Ins, PrintS, all (release-all).
+
+**CI**: `core/hid.py` and `lib/adafruit_hid/*.py` are compiled to `.mpy` in the `build-zip` job alongside other core modules.
 
 ### Config Loading
 
@@ -862,7 +884,7 @@ Keytimes: `btn_state.advance_keytime()` is called before reading `state_cfg`, so
 - `get_usb_drive_name(config)` returns the validated USB volume label (calls `validate_usb_drive_name()`, defaults to `"MIDICAPTAIN"`)
 - `get_dev_mode(config)` returns `bool(config.get("dev_mode", False))` — always safe to call even if the key is absent
 - `validate_usb_drive_name(name)` enforces FAT32 label rules: uppercase, alphanumeric + underscore, max 11 chars; returns `"MIDICAPTAIN"` for empty/invalid input
-- `STATE_OVERRIDE_FIELDS = ("cc", "cc_on", "cc_off", "note", "velocity_on", "velocity_off", "program", "pc_step", "color", "label")` — fields that can be overridden per keytime state
+- `STATE_OVERRIDE_FIELDS = ("cc", "cc_on", "cc_off", "note", "velocity_on", "velocity_off", "program", "pc_step", "color", "label", "hid_action", "hid_key", "hid_modifier", "hid_delay_ms")` — fields that can be overridden per keytime state
 - Default button: `{"label": str(i+1), "cc": 20+i, "color": "white"}`
 
 ### USB Drive Behaviour (boot.py)
@@ -901,6 +923,7 @@ if enable_usb_drive:
 | `firmware/dev/config-nano4.json` | NANO4 template config (copy to device as config.json) |
 | `firmware/dev/VERSION` | Firmware version (generated, gitignored) |
 | `firmware/dev/core/config.py` | Config loading; `get_usb_drive_name()`, `validate_usb_drive_name()`, `get_dev_mode()`, `get_display_config()`; `STATE_OVERRIDE_FIELDS` |
+| `firmware/dev/core/hid.py` | HID dispatch: `KEY_TABLE`, `MODIFIER_TABLE`, `dispatch_hid()`; single-action per call, refactorable for future multi-action |
 | `firmware/dev/core/button.py` | `ButtonState` class: toggle/momentary mode, keytimes cycling |
 | `firmware/dev/core/colors.py` | Color palette and `get_off_color()` utilities |
 | `firmware/dev/devices/std10.py` | STD10 hardware constants (10 switches, encoder, expression, ST7789 display) |

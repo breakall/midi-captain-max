@@ -746,16 +746,19 @@ def flash_pc_button(button_idx, flash_ms=PC_FLASH_DURATION_MS):
     pc_flash_timers[button_idx - 1] = time.monotonic() + flash_ms / 1000.0
 
 
+def _expire_flash_timers(timers, now):
+    """Turn off LEDs for a single flash-timer array whose expiry has passed."""
+    for i in range(BUTTON_COUNT):
+        if timers[i] > 0 and now >= timers[i]:
+            timers[i] = 0.0
+            set_button_state(i + 1, False)
+
+
 def update_pc_flash_timers():
     """Turn off LEDs whose flash period has expired. Call each main loop."""
     now = time.monotonic()
-    for i in range(BUTTON_COUNT):
-        if pc_flash_timers[i] > 0 and now >= pc_flash_timers[i]:
-            pc_flash_timers[i] = 0.0
-            set_button_state(i + 1, False)
-        if hid_flash_timers[i] > 0 and now >= hid_flash_timers[i]:
-            hid_flash_timers[i] = 0.0
-            set_button_state(i + 1, False)
+    _expire_flash_timers(pc_flash_timers, now)
+    _expire_flash_timers(hid_flash_timers, now)
 
 
 # =============================================================================

@@ -163,16 +163,20 @@ jobs:
           # This reduces file sizes ~30-50% and eliminates parse/compile
           # time on the device, improving both flash speed and boot time.
           # -O2 strips docstrings and assertions for smallest output.
-          for f in core/__init__.py core/button.py core/colors.py core/config.py; do
+          for f in core/__init__.py core/button.py core/colors.py core/config.py core/hid.py; do
             mpy-cross -O2 "$f" && rm "$f"
           done
           for f in devices/std10.py devices/mini6.py devices/nano4.py devices/duo2.py devices/one1.py; do
             mpy-cross -O2 "$f" && rm "$f"
           done
+          # Compile adafruit_hid library (our own implementation shipped in lib/)
+          for f in lib/adafruit_hid/__init__.py lib/adafruit_hid/keyboard.py lib/adafruit_hid/keycode.py lib/adafruit_hid/mouse.py; do
+            mpy-cross -O2 "$f" && rm "$f"
+          done
           # Remove empty __init__.py (no value as .mpy)
           rm -f devices/__init__.py
           echo "Compiled .py → .mpy:"
-          ls -la core/ devices/
+          ls -la core/ devices/ lib/adafruit_hid/
 
       - name: Write VERSION file
         run: |
