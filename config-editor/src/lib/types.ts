@@ -25,6 +25,19 @@ export type MessageType = NonNullable<ButtonConfig['type']>;
 export type Polarity = NonNullable<ExpressionConfig['polarity']>;
 export type DeviceType = NonNullable<MIDICaptainConfig['device']>;
 
+// Human-readable labels for every message type.
+// `satisfies` ensures this map stays in sync with the MessageType union —
+// if a new type is added to config.schema.json and types are regenerated,
+// this line fails to compile until the new entry is added here.
+export const MESSAGE_TYPE_LABELS = {
+  cc:     'CC',
+  note:   'Note',
+  pc:     'PC Fixed',
+  pc_inc: 'PC+',
+  pc_dec: 'PC-',
+  hid:    'HID',
+} as const satisfies Record<MessageType, string>;
+
 export interface DetectedDevice {
   name: string;
   path: string;

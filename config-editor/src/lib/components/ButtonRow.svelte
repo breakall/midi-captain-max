@@ -1,6 +1,7 @@
 <script lang="ts">
   import ColorSelect from './ColorSelect.svelte';
   import type { ButtonConfig, ButtonColor, ButtonMode, OffMode, MessageType } from '$lib/types';
+  import { MESSAGE_TYPE_LABELS } from '$lib/types';
   import { validationErrors, syncButtonStates } from '$lib/formStore';
 
   interface Props {
@@ -238,12 +239,9 @@
       onchange={handleTypeChange}
       disabled={disabled}
     >
-      <option value="cc">CC</option>
-      <option value="note">Note</option>
-      <option value="pc">PC Fixed</option>
-      <option value="pc_inc">PC+</option>
-      <option value="pc_dec">PC-</option>
-      <option value="hid">HID</option>
+      {#each Object.entries(MESSAGE_TYPE_LABELS) as [value, label]}
+        <option {value}>{label}</option>
+      {/each}
     </select>
   </div>
 
