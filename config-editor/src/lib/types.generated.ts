@@ -9,6 +9,14 @@
  */
 export type MidiByte = number;
 export type ButtonColor = "red" | "green" | "blue" | "yellow" | "cyan" | "magenta" | "orange" | "purple" | "white";
+/**
+ * 'send' = press+release, 'press' = hold key, 'release' = release key(s), 'delay' = pause execution.
+ */
+export type HidAction = "send" | "press" | "release" | "delay";
+/**
+ * Modifier key held during the HID action. 'option' is macOS Alt; 'windows' is the Windows/Meta key.
+ */
+export type HidModifier = "ctrl" | "shift" | "alt" | "option" | "windows";
 
 /**
  * Configuration for Paint Audio MIDI Captain MAX custom firmware. This schema is the single source of truth for the config format — TypeScript types are generated from it, Rust structs are validated against it, and Python firmware uses it as reference. Note: the title field drives the generated TypeScript interface name, so keep it short and stable.
@@ -50,7 +58,7 @@ export interface ButtonConfig {
   /**
    * MIDI message type. Determines which fields apply. Default: 'cc'.
    */
-  type?: "cc" | "note" | "pc" | "pc_inc" | "pc_dec";
+  type?: "cc" | "note" | "pc" | "pc_inc" | "pc_dec" | "hid";
   /**
    * Button behavior. 'toggle' = latching on/off, 'momentary' = on while held. Default: 'toggle'.
    */
@@ -107,6 +115,22 @@ export interface ButtonConfig {
    * Per-state overrides. Array length should match keytimes value.
    */
   states?: StateOverride[];
+  /**
+   * 'send' = press+release, 'press' = hold key, 'release' = release key(s), 'delay' = pause execution.
+   */
+  hid_action?: "send" | "press" | "release" | "delay";
+  /**
+   * Key name for HID action. Used when type='hid'. Valid values: A-Z, 0-9, F1-F12, Mouse_L, Mouse_R, Space, Esc, Caps, Right, Left, Up, Down, End, Del, PageUp, PageDown, Enter, Pause, Table, BackSpace, Home, Ins, PrintS, all (for release-all).
+   */
+  hid_key?: string;
+  /**
+   * Modifier key held during the HID action. 'option' is macOS Alt; 'windows' is the Windows/Meta key.
+   */
+  hid_modifier?: "ctrl" | "shift" | "alt" | "option" | "windows";
+  /**
+   * Delay duration in milliseconds. Used when type='hid' and hid_action='delay'.
+   */
+  hid_delay_ms?: number;
 }
 /**
  * Per-state overrides applied when cycling through keytimes. All fields optional — only specified fields override the base button config.
@@ -122,6 +146,13 @@ export interface StateOverride {
   pc_step?: number;
   color?: ButtonColor;
   label?: string;
+  hid_action?: HidAction;
+  /**
+   * Key name override for this keytime state.
+   */
+  hid_key?: string;
+  hid_modifier?: HidModifier;
+  hid_delay_ms?: number;
 }
 /**
  * Rotary encoder configuration. Only supported on STD10.

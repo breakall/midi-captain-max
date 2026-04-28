@@ -47,6 +47,29 @@ pub enum MessageType {
     Pc,
     PcInc,
     PcDec,
+    Hid,
+}
+
+/// HID action for a button
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum HidAction {
+    #[default]
+    Send,
+    Press,
+    Release,
+    Delay,
+}
+
+/// HID modifier key
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum HidModifier {
+    Ctrl,
+    Shift,
+    Alt,
+    Option,
+    Windows,
 }
 
 /// Per-state overrides for keytimes cycling
@@ -72,6 +95,15 @@ pub struct StateOverride {
     pub color: Option<ButtonColor>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    // HID override fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hid_action: Option<HidAction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hid_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hid_modifier: Option<HidModifier>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hid_delay_ms: Option<u16>,
 }
 
 /// Button configuration
@@ -115,6 +147,15 @@ pub struct ButtonConfig {
     pub keytimes: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub states: Option<Vec<StateOverride>>,
+    // HID fields (type="hid")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hid_action: Option<HidAction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hid_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hid_modifier: Option<HidModifier>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hid_delay_ms: Option<u16>,
 }
 
 fn is_default_off_mode(mode: &OffMode) -> bool {

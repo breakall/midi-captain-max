@@ -185,3 +185,75 @@ class TestExpressionValidation:
       },
     }
     assert not validator.is_valid(config)
+
+
+class TestHidButtonValidation:
+  """Schema validation for HID button type."""
+
+  def test_valid_hid_send_button(self, validator):
+    config = {"buttons": [{"label": "KEY-A", "color": "blue",
+                           "type": "hid", "hid_action": "send", "hid_key": "A"}]}
+    assert validator.is_valid(config)
+
+  def test_valid_hid_send_with_modifier(self, validator):
+    config = {"buttons": [{"label": "CTRL-S", "color": "blue",
+                           "type": "hid", "hid_action": "send",
+                           "hid_key": "S", "hid_modifier": "ctrl"}]}
+    assert validator.is_valid(config)
+
+  def test_valid_hid_press_button(self, validator):
+    config = {"buttons": [{"label": "HOLD", "color": "red",
+                           "type": "hid", "hid_action": "press", "hid_key": "A"}]}
+    assert validator.is_valid(config)
+
+  def test_valid_hid_release_all(self, validator):
+    config = {"buttons": [{"label": "RLSALL", "color": "red",
+                           "type": "hid", "hid_action": "release", "hid_key": "all"}]}
+    assert validator.is_valid(config)
+
+  def test_valid_hid_delay(self, validator):
+    config = {"buttons": [{"label": "DELAY", "color": "green",
+                           "type": "hid", "hid_action": "delay", "hid_delay_ms": 100}]}
+    assert validator.is_valid(config)
+
+  def test_valid_hid_mouse_button(self, validator):
+    config = {"buttons": [{"label": "CLICK", "color": "cyan",
+                           "type": "hid", "hid_key": "Mouse_L"}]}
+    assert validator.is_valid(config)
+
+  def test_invalid_hid_action(self, validator):
+    config = {"buttons": [{"label": "K", "color": "red",
+                           "type": "hid", "hid_action": "invalid_act"}]}
+    assert not validator.is_valid(config)
+
+  def test_invalid_hid_modifier(self, validator):
+    config = {"buttons": [{"label": "K", "color": "red",
+                           "type": "hid", "hid_key": "A", "hid_modifier": "super"}]}
+    assert not validator.is_valid(config)
+
+  def test_hid_delay_ms_too_low(self, validator):
+    config = {"buttons": [{"label": "K", "color": "red",
+                           "type": "hid", "hid_action": "delay", "hid_delay_ms": 0}]}
+    assert not validator.is_valid(config)
+
+  def test_hid_delay_ms_too_high(self, validator):
+    config = {"buttons": [{"label": "K", "color": "red",
+                           "type": "hid", "hid_action": "delay", "hid_delay_ms": 9999}]}
+    assert not validator.is_valid(config)
+
+  def test_invalid_hid_as_message_type_enum(self, validator):
+    """'hid' IS a valid type — this should pass, not fail."""
+    config = {"buttons": [{"label": "K", "color": "red", "type": "hid"}]}
+    assert validator.is_valid(config)
+
+  def test_hid_all_modifiers_valid(self, validator):
+    for mod in ["ctrl", "shift", "alt", "option", "windows"]:
+      config = {"buttons": [{"label": "K", "color": "red",
+                             "type": "hid", "hid_key": "A", "hid_modifier": mod}]}
+      assert validator.is_valid(config), f"modifier {mod!r} should be valid"
+
+  def test_hid_all_actions_valid(self, validator):
+    for action in ["send", "press", "release", "delay"]:
+      config = {"buttons": [{"label": "K", "color": "red",
+                             "type": "hid", "hid_action": action}]}
+      assert validator.is_valid(config), f"action {action!r} should be valid"

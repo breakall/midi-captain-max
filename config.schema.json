@@ -68,8 +68,19 @@
     },
     "MessageType": {
       "type": "string",
-      "enum": ["cc", "note", "pc", "pc_inc", "pc_dec"],
+      "enum": ["cc", "note", "pc", "pc_inc", "pc_dec", "hid"],
       "default": "cc"
+    },
+    "HidAction": {
+      "type": "string",
+      "enum": ["send", "press", "release", "delay"],
+      "default": "send",
+      "description": "'send' = press+release, 'press' = hold key, 'release' = release key(s), 'delay' = pause execution."
+    },
+    "HidModifier": {
+      "type": "string",
+      "enum": ["ctrl", "shift", "alt", "option", "windows"],
+      "description": "Modifier key held during the HID action. 'option' is macOS Alt; 'windows' is the Windows/Meta key."
     },
     "TextSize": {
       "type": "string",
@@ -115,6 +126,17 @@
           "type": "string",
           "maxLength": 6,
           "pattern": "^[\\w \\-]+$"
+        },
+        "hid_action":    { "$ref": "#/definitions/HidAction" },
+        "hid_key": {
+          "type": "string",
+          "description": "Key name override for this keytime state."
+        },
+        "hid_modifier":  { "$ref": "#/definitions/HidModifier" },
+        "hid_delay_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5000
         }
       },
       "additionalProperties": false
@@ -202,6 +224,24 @@
           "type": "array",
           "items": { "$ref": "#/definitions/StateOverride" },
           "description": "Per-state overrides. Array length should match keytimes value."
+        },
+        "hid_action": {
+          "$ref": "#/definitions/HidAction",
+          "description": "HID action to perform. Used when type='hid'. Default: 'send'."
+        },
+        "hid_key": {
+          "type": "string",
+          "description": "Key name for HID action. Used when type='hid'. Valid values: A-Z, 0-9, F1-F12, Mouse_L, Mouse_R, Space, Esc, Caps, Right, Left, Up, Down, End, Del, PageUp, PageDown, Enter, Pause, Table, BackSpace, Home, Ins, PrintS, all (for release-all)."
+        },
+        "hid_modifier": {
+          "$ref": "#/definitions/HidModifier",
+          "description": "Optional modifier key held during HID action. Used when type='hid' and hid_action='send' or 'press'."
+        },
+        "hid_delay_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5000,
+          "description": "Delay duration in milliseconds. Used when type='hid' and hid_action='delay'."
         }
       },
       "additionalProperties": false

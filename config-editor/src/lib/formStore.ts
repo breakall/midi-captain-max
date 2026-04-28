@@ -353,7 +353,8 @@ export function setDevice(deviceType: DeviceType) {
 // the user switches a button's type.
 function normalizeButton(btn: ButtonConfig): ButtonConfig {
   const type = btn.type ?? 'cc';
-  const { cc, cc_on, cc_off, note, velocity_on, velocity_off, program, pc_step, flash_ms, ...common } = btn;
+  const { cc, cc_on, cc_off, note, velocity_on, velocity_off, program, pc_step, flash_ms,
+          hid_action, hid_key, hid_modifier, hid_delay_ms, ...common } = btn;
 
   switch (type) {
     case 'cc':
@@ -382,6 +383,14 @@ function normalizeButton(btn: ButtonConfig): ButtonConfig {
         ...common,
         ...(pc_step !== undefined && { pc_step }),
         ...(flash_ms !== undefined && { flash_ms }),
+      };
+    case 'hid':
+      return {
+        ...common,
+        ...(hid_action !== undefined && { hid_action }),
+        ...(hid_key !== undefined && { hid_key }),
+        ...(hid_modifier !== undefined && { hid_modifier }),
+        ...(hid_delay_ms !== undefined && { hid_delay_ms }),
       };
     default:
       return btn;

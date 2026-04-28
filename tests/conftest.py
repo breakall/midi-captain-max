@@ -16,6 +16,10 @@ def install_mocks():
     """Install mock modules into sys.modules before importing firmware code."""
     from tests.mocks import board, digitalio, neopixel, displayio, busio
     from tests.mocks import usb_midi, rotaryio, analogio, terminalio
+    from tests.mocks import usb_hid
+    from tests.mocks.adafruit_hid import keyboard as hid_keyboard_mock
+    from tests.mocks.adafruit_hid import keycode as hid_keycode_mock
+    from tests.mocks.adafruit_hid import mouse as hid_mouse_mock
     
     sys.modules["board"] = board
     sys.modules["digitalio"] = digitalio
@@ -26,6 +30,15 @@ def install_mocks():
     sys.modules["rotaryio"] = rotaryio
     sys.modules["analogio"] = analogio
     sys.modules["terminalio"] = terminalio
+    sys.modules["usb_hid"] = usb_hid
+
+    # adafruit_hid — use mock package that records calls but shares real Keycode constants
+    import types as _types
+    hid_pkg = _types.ModuleType("adafruit_hid")
+    sys.modules["adafruit_hid"] = hid_pkg
+    sys.modules["adafruit_hid.keyboard"] = hid_keyboard_mock
+    sys.modules["adafruit_hid.keycode"] = hid_keycode_mock
+    sys.modules["adafruit_hid.mouse"] = hid_mouse_mock
     
     # Mock additional CircuitPython modules that may be needed
     # These are stub modules for imports that we don't need to fully mock

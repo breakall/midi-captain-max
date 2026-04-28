@@ -10,8 +10,8 @@ except ImportError:
     # CircuitPython has json built-in, but just in case
     json = None
 
-VALID_TYPES = ("cc", "note", "pc", "pc_inc", "pc_dec")
-STATE_OVERRIDE_FIELDS = ("cc", "cc_on", "cc_off", "note", "velocity_on", "velocity_off", "program", "pc_step", "color", "label")
+VALID_TYPES = ("cc", "note", "pc", "pc_inc", "pc_dec", "hid")
+STATE_OVERRIDE_FIELDS = ("cc", "cc_on", "cc_off", "note", "velocity_on", "velocity_off", "program", "pc_step", "color", "label", "hid_action", "hid_key", "hid_modifier", "hid_delay_ms")
 
 
 def load_config(config_path="/config.json", button_count=10):
@@ -59,7 +59,11 @@ def _clamp_state_field(field, value):
         if not isinstance(value, int):
             return 1
         return max(1, min(127, value))
-    return value  # color, label — pass through as-is
+    if field == "hid_delay_ms":
+        if not isinstance(value, int):
+            return 50
+        return max(1, min(5000, value))
+    return value  # color, label, hid_action, hid_key, hid_modifier — pass through as-is
 
 
 def validate_button(btn, index=0, global_channel=None):
@@ -119,6 +123,21 @@ def validate_button(btn, index=0, global_channel=None):
         validated["program"] = btn.get("program", 0)
     elif msg_type in ("pc_inc", "pc_dec"):
         validated["pc_step"] = btn.get("pc_step", 1)
+
+    # HID-specific fields
+    if msg_type == "hid":
+        validated["hid_action"] = btn.get("hid_action", "send")
+        if validated["hid_action"] not in ("send", "press", "release", "delay"):
+            validated["hid_action"] = "send"
+        hid_key = btn.get("hid_key")
+        if hid_key is not None:
+            validated["hid_key"] = str(hid_key)
+        hid_modifier = btn.get("hid_modifier")
+        if hid_modifier in ("ctrl", "shift", "alt", "option", "windows"):
+            validated["hid_modifier"] = hid_modifier
+        hid_delay_ms = btn.get("hid_delay_ms")
+        if isinstance(hid_delay_ms, int):
+            validated["hid_delay_ms"] = max(1, min(5000, hid_delay_ms))
 
     # For keytimes > 1, validate and pass through states array
     if keytimes > 1:

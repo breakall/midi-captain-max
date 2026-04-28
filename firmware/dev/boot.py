@@ -33,11 +33,12 @@ import time
 # CP 7.x uses supervisor.disable_autoreload(), not runtime.autoreload
 supervisor.disable_autoreload()
 
-# Load config settings needed at boot time (drive name + dev mode).
+# Load config settings needed at boot time (drive name, dev mode, HID enable).
 # boot.py runs before normal module search paths are established,
 # so we add /core to sys.path explicitly.
 usb_drive_name = "MIDICAPTAIN"  # Default fallback
 dev_mode = False                # Default: performance mode
+hid_enabled = False             # Default: HID not enabled
 try:
     import sys
     sys.path.insert(0, "/core")
@@ -46,9 +47,27 @@ try:
     cfg = load_config("/config.json")
     dev_mode = get_dev_mode(cfg)
     usb_drive_name = get_usb_drive_name(cfg)
+
+    # Enable USB HID only if at least one button uses type="hid".
+    # This keeps the USB descriptor clean for MIDI-only setups.
+    for btn in cfg.get("buttons", []):
+        if btn.get("type") == "hid":
+            hid_enabled = True
+            break
 except Exception:
-    # If config fails to load, use safe defaults (performance mode)
+    # If config fails to load, use safe defaults (performance mode, no HID)
     pass
+
+# Enable USB HID (keyboard + mouse) if any configured button uses type="hid".
+# Must be called before USB is fully initialized; boot.py is the only place
+# where usb_hid.enable() has any effect.
+if hid_enabled:
+    try:
+        import usb_hid
+        usb_hid.enable((usb_hid.Device.KEYBOARD, usb_hid.Device.MOUSE))
+        print("🎹 USB HID enabled (keyboard + mouse)")
+    except Exception as e:
+        print(f"⚠️  USB HID enable failed: {e}")
 
 # Check if user is holding a switch during boot.
 # DUO2/ONE1 use GP11 (KEY0) because GP1 is a DIP switch on those devices.

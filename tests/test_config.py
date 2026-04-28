@@ -519,3 +519,134 @@ class TestGetButtonStateConfig:
         btn = {"type": "cc", "cc": 20}
         result = get_button_state_config(btn, 1)
         assert "color" not in result
+
+
+class TestHidButtonType:
+    """Tests for HID button type configuration."""
+
+    def test_hid_type_recognized(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "KEY-A",
+                               "hid_action": "send", "hid_key": "A"}, index=0)
+        assert btn["type"] == "hid"
+
+    def test_hid_type_default_action(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_key": "A"}, index=0)
+        assert btn["hid_action"] == "send"
+
+    def test_hid_action_send(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_action": "send", "hid_key": "A"}, index=0)
+        assert btn["hid_action"] == "send"
+
+    def test_hid_action_press(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_action": "press", "hid_key": "A"}, index=0)
+        assert btn["hid_action"] == "press"
+
+    def test_hid_action_release(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_action": "release", "hid_key": "all"}, index=0)
+        assert btn["hid_action"] == "release"
+        assert btn["hid_key"] == "all"
+
+    def test_hid_action_delay(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "DLY",
+                               "hid_action": "delay", "hid_delay_ms": 100}, index=0)
+        assert btn["hid_action"] == "delay"
+        assert btn["hid_delay_ms"] == 100
+
+    def test_hid_invalid_action_defaults_to_send(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_action": "invalid_action"}, index=0)
+        assert btn["hid_action"] == "send"
+
+    def test_hid_modifier_ctrl(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_key": "S", "hid_modifier": "ctrl"}, index=0)
+        assert btn["hid_modifier"] == "ctrl"
+
+    def test_hid_modifier_shift(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_key": "A", "hid_modifier": "shift"}, index=0)
+        assert btn["hid_modifier"] == "shift"
+
+    def test_hid_modifier_alt(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_key": "F4", "hid_modifier": "alt"}, index=0)
+        assert btn["hid_modifier"] == "alt"
+
+    def test_hid_modifier_option(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_key": "A", "hid_modifier": "option"}, index=0)
+        assert btn["hid_modifier"] == "option"
+
+    def test_hid_modifier_windows(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_key": "D", "hid_modifier": "windows"}, index=0)
+        assert btn["hid_modifier"] == "windows"
+
+    def test_hid_invalid_modifier_dropped(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_key": "A", "hid_modifier": "super"}, index=0)
+        assert "hid_modifier" not in btn
+
+    def test_hid_delay_ms_clamped_high(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_action": "delay", "hid_delay_ms": 99999}, index=0)
+        assert btn["hid_delay_ms"] == 5000
+
+    def test_hid_delay_ms_clamped_low(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_action": "delay", "hid_delay_ms": 0}, index=0)
+        assert btn["hid_delay_ms"] == 1
+
+    def test_hid_no_cc_fields(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_key": "A"}, index=0)
+        assert "cc" not in btn
+        assert "cc_on" not in btn
+
+    def test_hid_no_note_fields(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_key": "A"}, index=0)
+        assert "note" not in btn
+
+    def test_hid_no_pc_fields(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_key": "A"}, index=0)
+        assert "program" not in btn
+
+    def test_hid_with_keytimes_and_states(self):
+        btn = validate_button({
+            "type": "hid",
+            "color": "blue",
+            "label": "K",
+            "hid_key": "A",
+            "keytimes": 2,
+            "states": [
+                {"hid_key": "B", "hid_modifier": "ctrl"},
+                {"hid_key": "C"},
+            ],
+        }, index=0)
+        assert btn["keytimes"] == 2
+        assert btn["states"][0]["hid_key"] == "B"
+        assert btn["states"][0]["hid_modifier"] == "ctrl"
+        assert btn["states"][1]["hid_key"] == "C"
+
+    def test_hid_state_delay_ms_clamped(self):
+        btn = validate_button({
+            "type": "hid",
+            "color": "blue",
+            "label": "K",
+            "hid_action": "delay",
+            "keytimes": 2,
+            "states": [{"hid_delay_ms": 0}, {"hid_delay_ms": 100}],
+        }, index=0)
+        assert btn["states"][0]["hid_delay_ms"] == 1
+        assert btn["states"][1]["hid_delay_ms"] == 100
+
+    def test_hid_inherits_global_channel(self):
+        btn = validate_button({"type": "hid", "color": "blue", "label": "K",
+                               "hid_key": "A"}, index=0, global_channel=3)
+        assert btn["channel"] == 3

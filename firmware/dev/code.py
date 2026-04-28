@@ -41,6 +41,7 @@ from adafruit_midi.note_off import NoteOff
 from core.colors import COLORS, get_color, dim_color, rgb_to_hex, get_off_color, get_off_color_for_display
 from core.config import load_config as _load_config_from_file, validate_config, get_display_config, get_button_state_config
 from core.button import Switch, ButtonState
+from core.hid import dispatch_hid
 
 # =============================================================================
 # Font Size Configuration
@@ -408,6 +409,33 @@ def midi_send(msg, channel=None):
     if midi_serial is not None:
         midi_serial.send(msg, channel=channel)
 
+# =============================================================================
+# USB HID Setup (Keyboard + Mouse)
+# =============================================================================
+# HID is only enabled if boot.py called usb_hid.enable(), which happens only
+# when at least one button is configured with type="hid".
+
+hid_keyboard = None
+hid_mouse = None
+
+try:
+    import usb_hid
+    if usb_hid.devices:
+        from adafruit_hid.keyboard import Keyboard
+        from adafruit_hid.mouse import Mouse
+        try:
+            hid_keyboard = Keyboard(usb_hid.devices)
+            print("USB HID Keyboard initialized")
+        except Exception as _e:
+            print(f"HID Keyboard init failed: {_e}")
+        try:
+            hid_mouse = Mouse(usb_hid.devices)
+            print("USB HID Mouse initialized")
+        except Exception as _e:
+            print(f"HID Mouse init failed: {_e}")
+except Exception:
+    pass  # usb_hid not available — no HID buttons in config
+
 # Encoder config (from config.json or defaults)
 enc_config = config.get("encoder", {"enabled": True, "cc": 11, "label": "ENC", "min": 0, "max": 127, "initial": 64})
 enc_push_config = enc_config.get("push", {"enabled": True, "cc": 14, "label": "PUSH", "mode": "momentary"})
@@ -455,7 +483,8 @@ for i in range(BUTTON_COUNT):
 
 pc_values = [0] * 16                 # Current PC value per MIDI channel (0-15), shared across all pc_inc/pc_dec buttons
 pc_flash_timers = [0.0] * BUTTON_COUNT  # Expiry time (monotonic) for PC button flash; 0 = inactive
-PC_FLASH_DURATION_MS = 200              # Default PC button flash duration in ms
+hid_flash_timers = [0.0] * BUTTON_COUNT  # Same for HID buttons
+PC_FLASH_DURATION_MS = 200              # Default PC/HID button flash duration in ms
 
 encoder_value = ENC_INITIAL  # Internal value 0-127
 encoder_slot = -1  # Current slot (set on first change)
@@ -724,6 +753,9 @@ def update_pc_flash_timers():
         if pc_flash_timers[i] > 0 and now >= pc_flash_timers[i]:
             pc_flash_timers[i] = 0.0
             set_button_state(i + 1, False)
+        if hid_flash_timers[i] > 0 and now >= hid_flash_timers[i]:
+            hid_flash_timers[i] = 0.0
+            set_button_state(i + 1, False)
 
 
 # =============================================================================
@@ -902,6 +934,25 @@ def handle_switches():
                 print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, dec)")
                 update_status(f"TX PC{pc_values[channel]}")
                 flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
+
+            elif message_type == "hid" and pressed:
+                btn_state.advance_keytime()
+                state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
+                # Resolve effective HID parameters from per-state override or base config.
+                # Future: when multi-action-per-press is added, replace these four fields
+                # with a hid_sequence list and iterate dispatch_hid() over each item.
+                hid_action = state_cfg.get("hid_action") or btn_config.get("hid_action", "send")
+                hid_key = state_cfg.get("hid_key") or btn_config.get("hid_key")
+                hid_modifier = state_cfg.get("hid_modifier") or btn_config.get("hid_modifier")
+                hid_delay_ms = state_cfg.get("hid_delay_ms") or btn_config.get("hid_delay_ms", 50)
+                dispatch_hid(hid_keyboard, hid_mouse, hid_action, hid_key, hid_modifier, hid_delay_ms)
+                key_label = hid_key if hid_key else "?"
+                print(f"[HID TX] {hid_action} {key_label} (switch {btn_num})")
+                update_status(f"HID {hid_action}")
+                # Flash LED briefly for press/send/release — delay doesn't need feedback
+                if hid_action != "delay":
+                    set_button_state(btn_num, True)
+                    hid_flash_timers[btn_num - 1] = time.monotonic() + PC_FLASH_DURATION_MS / 1000.0
 
 
 def handle_encoder_button():
