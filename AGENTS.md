@@ -209,6 +209,23 @@ This project uses CircuitPython firmware deployed to hardware devices (ONE, DUO2
 
 **TODO**: When upgrading to CircuitPython 8.x+, update `boot.py` to use `supervisor.runtime.autoreload = False` instead of `supervisor.disable_autoreload()`.
 
+### Bundle libs are `.mpy` v5 (CP 7-compatible)
+
+`firmware/dev/lib/` and the editor bundle ship `.mpy` files compiled in mpy format v5, loadable by CP 7.x. To verify before adding a new lib: `xxd <file>.mpy | head -1` — the second byte is the format version (`05` = mpy v5 = CP 7.x; `06` = mpy v6 = CP 8.x+, will fail to load on CP 7).
+
+### Never pass `circup install --py`
+
+`tools/deploy.{sh,ps1}` deliberately omit the `--py` flag. With `--py`, `circup` installs source `.py` over the bundle's `.mpy`, so both forms coexist in `/lib` for the same module. CP's resolution between coexisting forms is version- and state-dependent, and the `.py` source often pulls in modules the runtime CP doesn't have (e.g. `busdisplay` is CP 9-only) — this bricked a real CP 7.3.1 NANO4 during installer testing. circup's default writes `.mpy` matching the bundle; keep it that way.
+
+### Automating CircuitPython REPL via serial (rules of the road)
+
+Used by the GUI installer's pre-flight halt + post-install soft-reboot, and by `restart_device`. Apply these rules to any code driving the CP REPL via `serialport`:
+
+- **Ctrl-C halts a running `code.py` and prints "Press any key to enter the REPL".** CP _consumes_ the next inbound byte as that keypress. Always send a sacrificial CRLF after Ctrl-C before sending real commands; otherwise the first byte of your command (e.g. `i` of `import`) gets eaten and the rest is parsed as garbage.
+- **The REPL is line-mode: only executes a buffered line on CRLF (`\r\n`).** Plain `\r` leaves the line buffered. Always end commands with `\r\n`.
+- **Multi-line `try`/`except` doesn't paste cleanly** — use a single-line semicolon-joined statement. For CP 7 vs 8+ autoreload toggle: `import supervisor; getattr(supervisor, 'disable_autoreload', lambda: setattr(supervisor.runtime, 'autoreload', False))()` works on both.
+- **Soft reboot = Ctrl-D** after Ctrl-C. Re-runs `boot.py` + `code.py`, also re-enables autoreload.
+
 ### CP 7.x Syntax Restrictions (CRITICAL)
 
 CircuitPython 7.3.1 does NOT support all CPython syntax. These features pass `py_compile` and `pytest` on desktop Python but **crash on device boot** with `SyntaxError`:
@@ -955,6 +972,16 @@ GitHub's "Rebase and merge" UI option **rewrites commit SHAs** even when a fast-
 - Per-file/directory labels with `(no changes)` when nothing was updated
 - Shows current firmware version on device and incoming version at start
 - `sync_dir` / `sync_file` helpers (bash) wrap rsync and strip itemize-changes prefixes
+
+### Config Editor (Tauri) — Firmware Installer
+
+The Rust installer at `config-editor/src-tauri/src/installer.rs` mirrors `deploy.sh`'s copy order and is reused via a Tauri command + Svelte UI. Rules learned the hard way during #19:
+
+- **Sync `#[command] fn` runs on Tauri's IPC thread.** Any blocking work (file copies with `sync_all`, USB MSC writes, serial port I/O) pegs the UI _and_ stalls `Channel<T>` event delivery to JS. Use `#[command] async fn` plus `tauri::async_runtime::spawn_blocking` for filesystem/USB work; the Channel still streams from inside the blocking task.
+- **Stale-delete + same-stem `.py`/`.mpy` dedupe MUST run before copies in managed dirs (`core/devices/fonts/lib`).** A partial-install crash with the old order silently fell through to incompatible alternates (a stray `circup --py` `.py` next to our `.mpy`) on the next boot, instead of failing loud with `ImportError`. Tested by `delete_ops_run_before_copy_ops_in_managed_dir`.
+- **Don't `sync_all` the manifest (`firmware.md5`).** `fsync` on the device's USB MSC volume can hang for tens of seconds (or forever) while CircuitPython is at REPL — the install never reaches the Done event. The manifest is a non-safety-critical optimization for the next install's incremental skip; bare `fs::write` is correct. Per-file copies still call `sync_all` because firmware bytes must reach flash before code.py runs.
+- **Manifest reflects what's on the device, not what's in the bundle.** Build `final_manifest` during plan execution from Copy/Skip ops only; for `config_preserved` cases hash the actual on-device `config.json` (its bytes differ from the bundled template). This avoids the manifest claiming files exist that the installer never copied (e.g. `config-example-*.json`).
+- **Pre-flight halt is best-effort.** `commands::halt_and_disable_autoreload` is wrapped in `let _ =` because the serial port may be held by `tio`/`screen`, and `boot.py` already disables autoreload on every flashed device — failing the install on a serial-busy condition is too brittle.
 
 ---
 
