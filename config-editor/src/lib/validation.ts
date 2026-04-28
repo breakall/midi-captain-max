@@ -176,6 +176,20 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
         const stepError = validators.pcStep(btn.pc_step);
         if (stepError) errors.set(`buttons[${idx}].pc_step`, stepError);
       }
+    } else if (msgType === 'hid') {
+      const validActions = ['send', 'press', 'release', 'delay'];
+      if (btn.hid_action !== undefined && !validActions.includes(btn.hid_action)) {
+        errors.set(`buttons[${idx}].hid_action`, 'Invalid HID action');
+      }
+      const validModifiers = ['ctrl', 'shift', 'alt', 'option', 'windows'];
+      if (btn.hid_modifier !== undefined && !validModifiers.includes(btn.hid_modifier)) {
+        errors.set(`buttons[${idx}].hid_modifier`, 'Invalid modifier');
+      }
+      if (btn.hid_delay_ms !== undefined) {
+        if (!Number.isInteger(btn.hid_delay_ms) || btn.hid_delay_ms < 1 || btn.hid_delay_ms > 5000) {
+          errors.set(`buttons[${idx}].hid_delay_ms`, 'Delay must be between 1 and 5000 ms');
+        }
+      }
     }
 
     if (btn.channel !== undefined) {
@@ -234,6 +248,11 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
           if (state.label !== undefined) {
             const e = validators.label(state.label);
             if (e) errors.set(`${sp}.label`, e);
+          }
+          if (state.hid_delay_ms !== undefined) {
+            if (!Number.isInteger(state.hid_delay_ms) || state.hid_delay_ms < 1 || state.hid_delay_ms > 5000) {
+              errors.set(`${sp}.hid_delay_ms`, 'Delay must be between 1 and 5000 ms');
+            }
           }
         });
       }

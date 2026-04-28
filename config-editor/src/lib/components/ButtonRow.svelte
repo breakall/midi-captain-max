@@ -24,6 +24,7 @@
   let isNote = $derived(msgType === 'note');
   let isPC = $derived(msgType === 'pc');
   let isPCIncDec = $derived(msgType === 'pc_inc' || msgType === 'pc_dec');
+  let isHID = $derived(msgType === 'hid');
   let showMode = $derived(isCC || isNote);
 
   function handleLabelChange(e: Event) {
@@ -111,7 +112,50 @@
     onUpdate('flash_ms', value);
   }
 
+  function handleHidActionChange(e: Event) {
+    const target = e.target as HTMLSelectElement;
+    onUpdate('hid_action', target.value);
+  }
+
+  function handleHidKeyChange(e: Event) {
+    const target = e.target as HTMLInputElement;
+    onUpdate('hid_key', target.value === '' ? undefined : target.value);
+  }
+
+  function handleHidModifierChange(e: Event) {
+    const target = e.target as HTMLSelectElement;
+    onUpdate('hid_modifier', target.value === '' ? undefined : target.value);
+  }
+
+  function handleHidDelayMsChange(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const value = target.value === '' ? undefined : parseInt(target.value);
+    onUpdate('hid_delay_ms', value);
+  }
+
+  function handleStateHidActionChange(si: number, e: Event) {
+    const target = e.target as HTMLSelectElement;
+    onUpdate(`states[${si}].hid_action`, target.value === '' ? undefined : target.value);
+  }
+
+  function handleStateHidKeyChange(si: number, e: Event) {
+    const target = e.target as HTMLInputElement;
+    onUpdate(`states[${si}].hid_key`, target.value === '' ? undefined : target.value);
+  }
+
+  function handleStateHidModifierChange(si: number, e: Event) {
+    const target = e.target as HTMLSelectElement;
+    onUpdate(`states[${si}].hid_modifier`, target.value === '' ? undefined : target.value);
+  }
+
+  function handleStateHidDelayMsChange(si: number, e: Event) {
+    const target = e.target as HTMLInputElement;
+    const value = target.value === '' ? undefined : parseInt(target.value);
+    onUpdate(`states[${si}].hid_delay_ms`, value);
+  }
+
   let flashMsError = $derived($validationErrors.get(`${basePath}.flash_ms`));
+  let hidDelayMsError = $derived($validationErrors.get(`${basePath}.hid_delay_ms`));
 
   let hasKeytimes = $derived((button.keytimes ?? 1) > 1);
   let keytimesError = $derived($validationErrors.get(`${basePath}.keytimes`));
@@ -199,6 +243,7 @@
       <option value="pc">PC Fixed</option>
       <option value="pc_inc">PC+</option>
       <option value="pc_dec">PC-</option>
+      <option value="hid">HID</option>
     </select>
   </div>
 
@@ -282,6 +327,57 @@
         min="1" max="127" />
       {#if pcStepError}<span class="error-text">{pcStepError}</span>{/if}
     </div>
+  {:else if isHID}
+    <div class="field">
+      <label class="field-label" for={fieldId('hid-action')}>Action:</label>
+      <select id={fieldId('hid-action')} class="select"
+        value={button.hid_action ?? 'send'}
+        onchange={handleHidActionChange}
+        disabled={disabled}>
+        <option value="send">Send</option>
+        <option value="press">Press</option>
+        <option value="release">Release</option>
+        <option value="delay">Delay</option>
+      </select>
+    </div>
+    {#if (button.hid_action ?? 'send') !== 'delay'}
+      <div class="field">
+        <label class="field-label" for={fieldId('hid-key')}>Key:</label>
+        <input id={fieldId('hid-key')} type="text" class="input-hid-key"
+          value={button.hid_key ?? ''}
+          onblur={handleHidKeyChange}
+          disabled={disabled}
+          placeholder="A, F1, Space…"
+          title="OEM key name: A-Z, 0-9, F1-F12, Space, Esc, Enter, Mouse_L, Mouse_R, all…"
+        />
+      </div>
+      <div class="field">
+        <label class="field-label" for={fieldId('hid-modifier')}>Modifier:</label>
+        <select id={fieldId('hid-modifier')} class="select"
+          value={button.hid_modifier ?? ''}
+          onchange={handleHidModifierChange}
+          disabled={disabled}>
+          <option value="">None</option>
+          <option value="ctrl">Ctrl</option>
+          <option value="shift">Shift</option>
+          <option value="alt">Alt</option>
+          <option value="option">Option (⌥)</option>
+          <option value="windows">Windows (⊞)</option>
+        </select>
+      </div>
+    {:else}
+      <div class="field">
+        <label class="field-label" for={fieldId('hid-delay-ms')}>Delay (ms):</label>
+        <input id={fieldId('hid-delay-ms')} type="number" class="input-cc"
+          class:error={!!hidDelayMsError}
+          value={button.hid_delay_ms ?? ''}
+          onblur={handleHidDelayMsChange}
+          disabled={disabled}
+          min="1" max="5000" step="10" placeholder="50"
+        />
+        {#if hidDelayMsError}<span class="error-text">{hidDelayMsError}</span>{/if}
+      </div>
+    {/if}
   {/if}
 
   {#if isPC || isPCIncDec}
@@ -411,6 +507,50 @@
                 min="1" max="127" placeholder={String(button.pc_step ?? 1)} />
               {#if stateError(si, 'pc_step')}<span class="error-text">{stateError(si, 'pc_step')}</span>{/if}
             </div>
+          {:else if isHID}
+            <div class="field">
+              <label class="field-label" for={stateFieldId(si, 'hid-action')}>Action:</label>
+              <select id={stateFieldId(si, 'hid-action')} class="select"
+                value={state.hid_action ?? ''}
+                onchange={(e) => handleStateHidActionChange(si, e)}>
+                <option value="">Inherit</option>
+                <option value="send">Send</option>
+                <option value="press">Press</option>
+                <option value="release">Release</option>
+                <option value="delay">Delay</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label" for={stateFieldId(si, 'hid-key')}>Key:</label>
+              <input id={stateFieldId(si, 'hid-key')} type="text" class="input-hid-key"
+                value={state.hid_key ?? ''}
+                onblur={(e) => handleStateHidKeyChange(si, e)}
+                placeholder={button.hid_key ?? 'Inherit'}
+                title="Leave blank to inherit from base button config"
+              />
+            </div>
+            <div class="field">
+              <label class="field-label" for={stateFieldId(si, 'hid-modifier')}>Modifier:</label>
+              <select id={stateFieldId(si, 'hid-modifier')} class="select"
+                value={state.hid_modifier ?? ''}
+                onchange={(e) => handleStateHidModifierChange(si, e)}>
+                <option value="">Inherit</option>
+                <option value="ctrl">Ctrl</option>
+                <option value="shift">Shift</option>
+                <option value="alt">Alt</option>
+                <option value="option">Option (⌥)</option>
+                <option value="windows">Windows (⊞)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label" for={stateFieldId(si, 'hid-delay-ms')}>Delay (ms):</label>
+              <input id={stateFieldId(si, 'hid-delay-ms')} type="number" class="input-cc"
+                value={state.hid_delay_ms !== undefined ? state.hid_delay_ms : ''}
+                onblur={(e) => handleStateHidDelayMsChange(si, e)}
+                min="1" max="5000" step="10"
+                placeholder={String(button.hid_delay_ms ?? '')}
+              />
+            </div>
           {/if}
 
           <div class="field">
@@ -518,6 +658,14 @@
 
   .input-cc-value {
     width: 60px;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.875rem;
+  }
+
+  .input-hid-key {
+    width: 100px;
     padding: 0.375rem 0.5rem;
     border: 1px solid #ccc;
     border-radius: 4px;
