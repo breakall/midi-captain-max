@@ -1,87 +1,54 @@
 ${NOTES}
 
-# First: Backup!
+## First: Backup!
 
-**Before doing any of this, if you haven't already, please back up your existing config and firmware in a safe place** for recovery or to revert to OEM firmware:
+*Before doing any of this, if you haven't already, please back up your existing config and firmware to a safe place* for recovery or to revert to OEM firmware:
 
-1. Mount the device to your computer. You may have to hold down Button 1/0 to force it to mount.
-2. Copy all of the content to a safe place on your computer.
+1. Mount the device to your computer. You may have to hold down Button 1 / KEY0 to force it to mount.
+2. Copy all contents of the device to a safe place on your computer.
 
 # Installation
 
-Download  [MIDI-Captain-MAX-${VERSION}-complete.zip](https://github.com/MC-Music-Workshop/midi-captain-max/releases/download/${VERSION}/MIDI-Captain-MAX-${VERSION}-complete.zip) from the `Assets` section below.
+Once MIDI Captain MAX is installed, manual firmware updates are no longer needed. The GUI Config Editor now includes a **Firmware Installation** section at the bottom of the window. It shows the currently installed firmware version and the bundled version available to install.
 
-## GUI Config Editor
+You can download either:
 
-The "complete" package contains installers for Mac and Windows. Use the appropriate installer for your OS.
+- The appropriate Config Editor installer for your OS: `.dmg` for macOS, `.exe` or `.msi` for Windows. **The Config Editor includes the bundled firmware, so you don't need to download it separately**, or
+- The `MIDI-Captain-MAX-v1.10.0-complete.zip` package if you want the GUI and the firmware as separate packages.<br>For example, if you need to use the deploy script for the first install, or for an unsupported OS, this package includes everything you need. (The GUI still includes the bundled firmware; the zip is just for convenience if you want to use the deploy script instead of the GUI installer.)
 
-## MIDI Captain Firmware
+## Updating an Existing MIDI Captain MAX Install
 
 1. Connect your MIDI Captain via USB and power it on.
-    - The device will mount as `CIRCUITPY` or `MIDICAPTAIN`.
-    - If the drive mounts as read-only, hold switch 1 (top-left footswitch) while plugging in USB to enable write access.
-1. Extract the firmware.zip in the downloaded "complete" package.
+   - The device may mount as `CIRCUITPY` or `MIDICAPTAIN`.
+   - If no drive appears, hold switch 1 / KEY0 while plugging in USB.
+2. Install and open the MIDI Captain MAX Config Editor.
+3. Scroll to the **Firmware Installation** section at the bottom of the app window.
+4. Click **Install Firmware**.
 
-Note: The scripts auto-detect your device type (STD10, Mini6, NANO4, DUO2, or ONE) and preserve your `config.json` unless you pass `--fresh / -Fresh` (Mac/Win)
+By default, the installer preserves your existing `config.json`. Enable **Reset config.json to bundled defaults** only if you want to overwrite your current settings with the default template.
 
-### macOS / Linux
+The app will copy the firmware, reload the device, and update it in place.
 
-Run the included `deploy.sh` script from the extracted zip folder:
+## First Run on OEM Firmware
 
-```bash
-# Quick update (preserves your existing config.json)
-./deploy.sh
+If your MIDI Captain is still running the factory Paint Audio firmware, the Config Editor may show `OEM (no VERSION file)`.
 
-# First-time install — also installs required CircuitPython libraries
-./deploy.sh --install
+In many cases, the first install still requires a one-time bootstrap because the OEM firmware does not provide a MIDI Captain MAX `config.json` for device-type detection.
 
-# Deploy and eject for a clean reload
-./deploy.sh --eject
+1. Hold Button 1 / KEY0 while plugging in USB to enter the OEM USB settings mode. A `MIDICAPTAIN` drive should appear.
+2. Download and extract `MIDI-Captain-MAX-v1.10.0-complete.zip` from the Assets section below.
+3. Run the included deploy script once with your device type:
+   <br>_NOTE: only enter the desired device type, not the full list of options.
+   <br>For example, if you have a Nano 4, run `./deploy.sh --device nano4`_.
+   - macOS / Linux: `./deploy.sh --device std10|mini6|nano4|duo2|one1`
+   - Windows PowerShell: `.\deploy.ps1 -Device std10|mini6|nano4|duo2|one1`
+4. Reconnect the device and open the MIDI Captain MAX Config Editor.
+5. From then on, use the **Firmware Installation** section in the app for future updates.
 
-# Overwrite config.json with the default - resets your button mappings
-./deploy.sh --fresh
+## Recovery
 
-# Deploy to a device with a custom drive name, see Custom Drive Names below
-./deploy.sh /Volumes/<device-name> # Mac
-./deploy.sh /path/to/mount # Linux
-```
+If anything goes wrong, it is fully recoverable:
 
-### Windows
-
-Run the included `deploy.ps1` script from the extracted zip folder in PowerShell:
-
-```powershell
-# Quick update (preserves your existing config.json)
-.\deploy.ps1
-
-# First-time install — also installs required CircuitPython libraries
-.\deploy.ps1 -Install
-
-# Deploy and eject for a clean reload
-.\deploy.ps1 -Eject
-
-# Overwrite config.json with the default (resets your button mappings)
-.\deploy.ps1 -Fresh
-
-# Specify a drive letter manually, see Custom Drive Names below
-.\deploy.ps1 -MountPoint E:\
-```
-
-### Custom Drive Names
-
-If you've renamed your device's USB drive (via the `usb_drive_name` setting in `config.json`), specify the mount point manually:
-
-- **macOS**: `./deploy.sh /Volumes/<your-drive-name>`
-- **Linux**: `./deploy.sh /media/$USER/<your-drive-name>`
-- **Windows**: `.\deploy.ps1 -MountPoint E:\`
-
-### Manual install (any platform)
-
-1. Open the extracted zip folder.
-1. Copy all files and folders to the device drive (`CIRCUITPY` or `MIDICAPTAIN`), replacing existing files.
-    - If you have a custom `config.json` with your own button mappings, keep your existing one.
-1. **First-time install on non-STD10:** delete `config.json` on the device and rename `config-<deviceType>.json` to `config.json`.
-
----
-
-Eject and reconnect the device to reload the firmware. If anything goes wrong, it's fully recoverable: mount the device, erase the contents, and copy your backed-up files back.
+1. Mount the device.
+2. Erase the contents.
+3. Restore your backup, or re-run the first-install steps above.
