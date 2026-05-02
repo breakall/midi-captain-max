@@ -15,6 +15,7 @@ Momentary and toggle modes are currently supported. Many more features are comin
 - **Dev Mode** - Quickly test config changes without remounting the device
 - **Custom Drive Names** - Useful when managing multiple Captains
 - **HID Messages** - send keyboard and mouse messages in addition to MIDI
+- **Signed Installation Packages** — Install without security warnings or manual overrides (macOS and Linux)
 - **Stage-ready** — No unexpected resets, no crashes, no surprises
 
 ### Includes a **GUI Config Editor**!
