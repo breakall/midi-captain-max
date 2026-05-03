@@ -18,7 +18,9 @@
 
   function handleUsbDriveNameChange(e: Event) {
     const target = e.target as HTMLInputElement;
-    updateField('usb_drive_name', target.value || undefined);
+    const raw = target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '');
+    target.value = raw;
+    updateField('usb_drive_name', raw || undefined);
   }
 
   function handleDevModeChange(e: Event) {
@@ -84,10 +86,6 @@
       </p>
     </div>
 
-    <!-- USB Drive Name: hidden until CircuitPython 8.x upgrade ships.
-         The backend plumbing (config field, boot.py label= support) is intact.
-         On CP 7.x, storage.remount() doesn't accept label=, so this has no effect.
-         Re-enable this block once the CP upgrade is deployed to users.
     <div class="field-group">
       <label for="usb-drive-name">USB Drive Name:</label>
       <input
@@ -100,11 +98,10 @@
         placeholder="MIDICAPTAIN"
       />
       <p class="help-text">
-        Name shown when the drive mounts on your computer (max 11 chars,
-        letters/numbers/underscores). Leave blank to use "MIDICAPTAIN".
+        This name must match the device's actual mounted drive name.
+        The Config Editor saves this value to config.json, but renaming the drive itself is a manual step.
       </p>
     </div>
-    -->
 
     <div class="field-group">
       <div class="checkbox-row">
@@ -162,6 +159,16 @@
     border: 1px solid var(--border-color, #ccc);
     border-radius: 4px;
     font-size: 0.875rem;
+  }
+
+  .input-text {
+    padding: 0.5rem;
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-family: monospace;
+    max-width: 150px;
+    text-transform: uppercase;
   }
 
   .channel-input-group {

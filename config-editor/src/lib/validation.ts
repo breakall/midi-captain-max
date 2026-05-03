@@ -89,6 +89,12 @@ export const validators = {
     if (value < 0 || value > 15) return 'Channel must be between 1 and 16';
     return null;
   },
+
+  usbDriveName: (value: string): string | null => {
+    if (value.length > 11) return 'Drive name must be 11 characters or less';
+    if (!/^[A-Z0-9_]*$/.test(value)) return 'Drive name may only contain A–Z, 0–9, and underscore';
+    return null;
+  },
 };
 
 export function validateConfig(config: MidiCaptainConfig): ValidationResult {
@@ -141,6 +147,12 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
     }
   }
   
+  // Validate usb_drive_name
+  if (config.usb_drive_name) {
+    const err = validators.usbDriveName(config.usb_drive_name);
+    if (err) errors.set('usb_drive_name', err);
+  }
+
   // Validate all buttons
   config.buttons.forEach((btn, idx) => {
     const labelError = validators.label(btn.label);
