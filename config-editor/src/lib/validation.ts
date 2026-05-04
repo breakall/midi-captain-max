@@ -92,7 +92,7 @@ export const validators = {
 
   usbDriveName: (value: string): string | null => {
     if (value.length > 11) return 'Drive name must be 11 characters or less';
-    if (!/^[A-Z0-9_]*$/.test(value)) return 'Drive name may only contain A–Z, 0–9, and underscore';
+    if (!/^[A-Za-z0-9_]*$/.test(value)) return 'Drive name may only contain A–Z, 0–9, and underscore';
     return null;
   },
 };

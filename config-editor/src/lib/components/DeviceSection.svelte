@@ -91,15 +91,16 @@
       <input
         id="usb-drive-name"
         type="text"
-        class="input-text"
+        class="usb-drive-name-input"
         value={usbDriveName}
         onblur={handleUsbDriveNameChange}
         maxlength="11"
         placeholder="MIDICAPTAIN"
       />
       <p class="help-text">
-        This name must match the device's actual mounted drive name.
-        The Config Editor saves this value to config.json, but renaming the drive itself is a manual step.
+        Set this to the device's USB drive name (max 11 chars, letters/numbers/underscores).
+        Renaming the physical drive must be done manually for now.
+        Leave blank to use "MIDICAPTAIN".
       </p>
     </div>
 
@@ -161,7 +162,7 @@
     font-size: 0.875rem;
   }
 
-  .input-text {
+  .usb-drive-name-input {
     padding: 0.5rem;
     border: 1px solid var(--border-color, #ccc);
     border-radius: 4px;
