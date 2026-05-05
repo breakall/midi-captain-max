@@ -326,6 +326,64 @@ class TestButtonMessageTypes:
         assert btn_inc["pc_step"] == 1
         assert btn_dec["pc_step"] == 1
 
+    def test_pc_type_default_mode_is_flash(self):
+        """PC button type defaults to flash mode, not toggle."""
+        btn = validate_button({"type": "pc", "program": 0}, index=0)
+        assert btn["mode"] == "flash"
+
+    def test_pc_inc_dec_default_mode_is_flash(self):
+        """PC inc/dec buttons default to flash mode."""
+        btn_inc = validate_button({"type": "pc_inc"}, index=0)
+        btn_dec = validate_button({"type": "pc_dec"}, index=0)
+        assert btn_inc["mode"] == "flash"
+        assert btn_dec["mode"] == "flash"
+
+    def test_pc_type_accepts_toggle_mode(self):
+        """PC button can be configured with toggle mode."""
+        btn = validate_button({"type": "pc", "program": 0, "mode": "toggle"}, index=0)
+        assert btn["mode"] == "toggle"
+
+    def test_pc_type_accepts_momentary_mode(self):
+        """PC button can be configured with momentary mode."""
+        btn = validate_button({"type": "pc", "program": 0, "mode": "momentary"}, index=0)
+        assert btn["mode"] == "momentary"
+
+    def test_cc_type_default_mode_is_toggle(self):
+        """CC button type still defaults to toggle mode."""
+        btn = validate_button({"type": "cc", "cc": 20}, index=0)
+        assert btn["mode"] == "toggle"
+
+    def test_note_type_default_mode_is_toggle(self):
+        """Note button type still defaults to toggle mode."""
+        btn = validate_button({"type": "note", "note": 60}, index=0)
+        assert btn["mode"] == "toggle"
+
+    def test_pc_type_rejects_invalid_mode(self):
+        """PC button with invalid mode falls back to flash."""
+        btn = validate_button({"type": "pc", "program": 0, "mode": "invalid"}, index=0)
+        assert btn["mode"] == "flash"
+
+    def test_pc_type_preserves_flash_ms(self):
+        """flash_ms from config must reach validated dict so firmware can read it."""
+        btn = validate_button({"type": "pc", "program": 0, "flash_ms": 1000}, index=0)
+        assert btn["flash_ms"] == 1000
+        btn_inc = validate_button({"type": "pc_inc", "flash_ms": 750}, index=0)
+        assert btn_inc["flash_ms"] == 750
+        btn_dec = validate_button({"type": "pc_dec", "flash_ms": 500}, index=0)
+        assert btn_dec["flash_ms"] == 500
+
+    def test_pc_type_clamps_flash_ms(self):
+        """flash_ms is clamped to schema range 50-5000."""
+        btn_low = validate_button({"type": "pc", "program": 0, "flash_ms": 10}, index=0)
+        assert btn_low["flash_ms"] == 50
+        btn_high = validate_button({"type": "pc", "program": 0, "flash_ms": 99999}, index=0)
+        assert btn_high["flash_ms"] == 5000
+
+    def test_pc_type_omits_flash_ms_when_absent(self):
+        """No flash_ms in config means the validated dict has no flash_ms key (firmware uses its default)."""
+        btn = validate_button({"type": "pc", "program": 0}, index=0)
+        assert "flash_ms" not in btn
+
     def test_invalid_type_falls_back_to_cc(self):
         btn = validate_button({"type": "invalid_type"}, index=0)
         assert btn["type"] == "cc"

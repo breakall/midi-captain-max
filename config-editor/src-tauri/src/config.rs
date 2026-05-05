@@ -26,6 +26,7 @@ pub enum ButtonMode {
     #[default]
     Toggle,
     Momentary,
+    Flash,
 }
 
 /// LED behavior when button is off

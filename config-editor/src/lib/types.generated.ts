@@ -60,9 +60,9 @@ export interface ButtonConfig {
    */
   type?: "cc" | "note" | "pc" | "pc_inc" | "pc_dec" | "hid";
   /**
-   * Button behavior. 'toggle' = latching on/off, 'momentary' = on while held. Default: 'toggle'.
+   * Button behavior. 'toggle' = latching LED on/off, 'momentary' = LED on while held, 'flash' = brief LED flash on press (PC types only, default for PC types). Default for CC/Note/HID: 'toggle'.
    */
-  mode?: "toggle" | "momentary";
+  mode?: "toggle" | "momentary" | "flash";
   /**
    * LED behavior when button is off. Default: 'dim'.
    */
@@ -104,7 +104,7 @@ export interface ButtonConfig {
    */
   pc_step?: number;
   /**
-   * LED flash duration in milliseconds for PC feedback.
+   * LED flash duration in milliseconds. Used when type is PC and mode is 'flash'.
    */
   flash_ms?: number;
   /**
@@ -211,7 +211,7 @@ export interface EncoderPush {
   /**
    * Button behavior. Default: 'momentary'.
    */
-  mode?: "toggle" | "momentary";
+  mode?: "toggle" | "momentary" | "flash";
   /**
    * Per-push MIDI channel override. Inherits encoder channel or global_channel if omitted.
    */

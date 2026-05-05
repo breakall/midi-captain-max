@@ -57,8 +57,7 @@
     },
     "ButtonMode": {
       "type": "string",
-      "enum": ["toggle", "momentary"],
-      "default": "toggle"
+      "enum": ["toggle", "momentary", "flash"]
     },
     "OffMode": {
       "type": "string",
@@ -161,7 +160,7 @@
         },
         "mode": {
           "$ref": "#/definitions/ButtonMode",
-          "description": "Button behavior. 'toggle' = latching on/off, 'momentary' = on while held. Default: 'toggle'."
+          "description": "Button behavior. 'toggle' = latching LED on/off, 'momentary' = LED on while held, 'flash' = brief LED flash on press (PC types only, default for PC types). Default for CC/Note/HID: 'toggle'."
         },
         "off_mode": {
           "$ref": "#/definitions/OffMode",
@@ -211,7 +210,7 @@
           "minimum": 50,
           "maximum": 5000,
           "default": 200,
-          "description": "LED flash duration in milliseconds for PC feedback."
+          "description": "LED flash duration in milliseconds. Used when type is PC and mode is 'flash'."
         },
         "keytimes": {
           "type": "integer",

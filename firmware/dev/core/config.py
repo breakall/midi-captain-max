@@ -101,10 +101,16 @@ def validate_button(btn, index=0, global_channel=None):
     if msg_type not in VALID_TYPES:
         msg_type = "cc"
 
+    # PC types default to "flash" (brief LED pulse); CC/Note default to "toggle"
+    default_mode = "flash" if msg_type in ("pc", "pc_inc", "pc_dec") else "toggle"
+    raw_mode = btn.get("mode", default_mode)
+    if raw_mode not in ("toggle", "momentary", "flash"):
+        raw_mode = default_mode
+
     validated = {
         "label": btn.get("label", str(index + 1)),
         "color": btn.get("color", "white"),
-        "mode": btn.get("mode", "toggle"),
+        "mode": raw_mode,
         "off_mode": btn.get("off_mode", "dim"),
         "channel": btn.get("channel", default_channel),
         "type": msg_type,
@@ -124,6 +130,12 @@ def validate_button(btn, index=0, global_channel=None):
         validated["program"] = btn.get("program", 0)
     elif msg_type in ("pc_inc", "pc_dec"):
         validated["pc_step"] = btn.get("pc_step", 1)
+
+    # flash_ms stored for all PC types (used by firmware only when mode is flash); clamp to schema range 50-5000
+    if msg_type in ("pc", "pc_inc", "pc_dec"):
+        flash_ms = btn.get("flash_ms")
+        if isinstance(flash_ms, int):
+            validated["flash_ms"] = max(50, min(5000, flash_ms))
 
     # HID-specific fields
     if msg_type == "hid":

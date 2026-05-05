@@ -625,6 +625,16 @@ if HAS_SEG_DISPLAY:
             _seg_uart.write(frame)
             time.sleep(SEG_DISPLAY_DELAY_MS / 1000.0)
 
+    def _seg_boot_animation():
+        """Chase outer segments around all digits, mimicking the power-on LCD dance."""
+        # Clockwise: top, top-right, bottom-right, bottom, bottom-left, top-left
+        outer_segs = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20]
+        for _ in range(3):
+            for seg in outer_segs:
+                _seg_uart.write(bytes([SEG_DISPLAY_HEADER, seg, seg, seg, SEG_DISPLAY_FOOTER]))
+                time.sleep(0.07)
+        _seg_uart.write(bytes([SEG_DISPLAY_HEADER, 0x00, 0x00, 0x00, SEG_DISPLAY_FOOTER]))
+
     print("Seg display initialized (GP4/GP5, 9600 baud)")
 
 
@@ -909,34 +919,70 @@ def handle_switches():
                         print(f"[MIDI TX] Ch{channel+1} NoteOff{note} (switch {btn_num}, toggle off)")
                         update_status(f"TX Note{note} OFF")
 
-            elif message_type == "pc" and pressed:
-                btn_state.advance_keytime()
-                state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
-                program = state_cfg.get("program", 0)
-                midi_send(ProgramChange(program), channel=channel)
-                print(f"[MIDI TX] Ch{channel+1} PC{program} (switch {btn_num})")
-                update_status(f"TX PC{program}")
-                flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
+            elif message_type == "pc":
+                if pressed:
+                    btn_state.advance_keytime()
+                    state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
+                    program = state_cfg.get("program", 0)
+                    midi_send(ProgramChange(program), channel=channel)
+                    print(f"[MIDI TX] Ch{channel+1} PC{program} (switch {btn_num})")
+                    update_status(f"TX PC{program}")
+                    if mode == "toggle":
+                        new_state = not btn_state.state
+                        btn_state.state = new_state
+                        set_button_state(btn_num, new_state)
+                    elif mode == "momentary":
+                        btn_state.state = True
+                        set_button_state(btn_num, True)
+                    else:  # "flash" (default)
+                        flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
+                elif mode == "momentary":
+                    btn_state.state = False
+                    set_button_state(btn_num, False)
 
-            elif message_type == "pc_inc" and pressed:
-                btn_state.advance_keytime()
-                state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
-                step = state_cfg.get("pc_step", 1)
-                pc_values[channel] = clamp_pc_value(pc_values[channel] + step)
-                midi_send(ProgramChange(pc_values[channel]), channel=channel)
-                print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, inc)")
-                update_status(f"TX PC{pc_values[channel]}")
-                flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
+            elif message_type == "pc_inc":
+                if pressed:
+                    btn_state.advance_keytime()
+                    state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
+                    step = state_cfg.get("pc_step", 1)
+                    pc_values[channel] = clamp_pc_value(pc_values[channel] + step)
+                    midi_send(ProgramChange(pc_values[channel]), channel=channel)
+                    print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, inc)")
+                    update_status(f"TX PC{pc_values[channel]}")
+                    if mode == "toggle":
+                        new_state = not btn_state.state
+                        btn_state.state = new_state
+                        set_button_state(btn_num, new_state)
+                    elif mode == "momentary":
+                        btn_state.state = True
+                        set_button_state(btn_num, True)
+                    else:  # "flash" (default)
+                        flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
+                elif mode == "momentary":
+                    btn_state.state = False
+                    set_button_state(btn_num, False)
 
-            elif message_type == "pc_dec" and pressed:
-                btn_state.advance_keytime()
-                state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
-                step = state_cfg.get("pc_step", 1)
-                pc_values[channel] = clamp_pc_value(pc_values[channel] - step)
-                midi_send(ProgramChange(pc_values[channel]), channel=channel)
-                print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, dec)")
-                update_status(f"TX PC{pc_values[channel]}")
-                flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
+            elif message_type == "pc_dec":
+                if pressed:
+                    btn_state.advance_keytime()
+                    state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
+                    step = state_cfg.get("pc_step", 1)
+                    pc_values[channel] = clamp_pc_value(pc_values[channel] - step)
+                    midi_send(ProgramChange(pc_values[channel]), channel=channel)
+                    print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, dec)")
+                    update_status(f"TX PC{pc_values[channel]}")
+                    if mode == "toggle":
+                        new_state = not btn_state.state
+                        btn_state.state = new_state
+                        set_button_state(btn_num, new_state)
+                    elif mode == "momentary":
+                        btn_state.state = True
+                        set_button_state(btn_num, True)
+                    else:  # "flash" (default)
+                        flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
+                elif mode == "momentary":
+                    btn_state.state = False
+                    set_button_state(btn_num, False)
 
             elif message_type == "hid" and pressed:
                 btn_state.advance_keytime()
@@ -952,8 +998,12 @@ def handle_switches():
                 key_label = hid_key if hid_key else "?"
                 print(f"[HID TX] {hid_action} {key_label} (switch {btn_num})")
                 update_status(f"HID {hid_action}")
-                # Flash LED briefly for press/send/release — delay doesn't need feedback
-                if hid_action != "delay":
+                mode = btn_config.get("mode", "momentary")
+                if mode == "toggle" and hid_action != "delay":
+                    btn_state.state = not btn_state.state
+                    set_button_state(btn_num, btn_state.state)
+                elif hid_action != "delay":
+                    # Flash LED briefly for press/send/release — delay doesn't need feedback
                     set_button_state(btn_num, True)
                     hid_flash_timers[btn_num - 1] = time.monotonic() + PC_FLASH_DURATION_MS / 1000.0
 
@@ -1091,7 +1141,10 @@ init_leds()
 # Startup animation
 pixels.fill((0, 255, 0))
 pixels.show()
-time.sleep(0.5)
+if HAS_SEG_DISPLAY:
+    _seg_boot_animation()
+else:
+    time.sleep(0.5)
 init_leds()
 
 # Show CC mapping info

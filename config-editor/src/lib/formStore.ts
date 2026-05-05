@@ -225,7 +225,6 @@ function createDefaultButton(index: number): ButtonConfig {
     label: `BTN${index}`,
     cc: 20 + index,
     color: 'white',
-    mode: 'toggle',
     off_mode: 'dim',
   };
 }
@@ -371,19 +370,23 @@ function normalizeButton(btn: ButtonConfig): ButtonConfig {
         ...(velocity_on !== undefined && { velocity_on }),
         ...(velocity_off !== undefined && { velocity_off }),
       };
-    case 'pc':
+    case 'pc': {
+      const pcFlashMode = common.mode === undefined || common.mode === 'flash';
       return {
         ...common,
         ...(program !== undefined && { program }),
-        ...(flash_ms !== undefined && { flash_ms }),
+        ...(pcFlashMode && flash_ms !== undefined && { flash_ms }),
       };
+    }
     case 'pc_inc':
-    case 'pc_dec':
+    case 'pc_dec': {
+      const pcFlashMode = common.mode === undefined || common.mode === 'flash';
       return {
         ...common,
         ...(pc_step !== undefined && { pc_step }),
-        ...(flash_ms !== undefined && { flash_ms }),
+        ...(pcFlashMode && flash_ms !== undefined && { flash_ms }),
       };
+    }
     case 'hid':
       return {
         ...common,

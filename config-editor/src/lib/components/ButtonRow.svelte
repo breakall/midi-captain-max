@@ -26,7 +26,8 @@
   let isPC = $derived(msgType === 'pc');
   let isPCIncDec = $derived(msgType === 'pc_inc' || msgType === 'pc_dec');
   let isHID = $derived(msgType === 'hid');
-  let showMode = $derived(isCC || isNote);
+  let isPCType = $derived(isPC || isPCIncDec);
+  let showMode = $derived(isCC || isNote || isPCType || isHID);
 
   function handleLabelChange(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -378,7 +379,7 @@
     {/if}
   {/if}
 
-  {#if isPC || isPCIncDec}
+  {#if isPCType && (button.mode ?? 'flash') === 'flash'}
     <div class="field">
       <label class="field-label" for={fieldId('flash-ms')}>Flash (ms):</label>
       <input id={fieldId('flash-ms')} type="number" class="input-cc" class:error={!!flashMsError}
@@ -414,8 +415,11 @@
 
   {#if showMode}
     <div class="field">
-      <label class="field-label" for={fieldId('mode')}>Switch Mode:</label>
-      <select id={fieldId('mode')} class="select" value={button.mode || 'toggle'} onchange={handleModeChange} disabled={disabled}>
+      <label class="field-label" for={fieldId('mode')}>LED Mode:</label>
+      <select id={fieldId('mode')} class="select" value={button.mode || (isPCType ? 'flash' : 'toggle')} onchange={handleModeChange} disabled={disabled}>
+        {#if isPCType}
+          <option value="flash">Flash</option>
+        {/if}
         <option value="toggle">Toggle</option>
         <option value="momentary">Momentary</option>
       </select>

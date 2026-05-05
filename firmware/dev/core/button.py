@@ -47,7 +47,7 @@ class Switch:
 class ButtonState:
     """Tracks toggle state and mode for a button.
     
-    Supports toggle and momentary modes with bidirectional sync.
+    Supports toggle, momentary, and flash modes with bidirectional sync.
     Also supports keytimes (multi-press cycling through states).
     """
     
@@ -56,7 +56,7 @@ class ButtonState:
         
         Args:
             cc: MIDI CC number for this button
-            mode: "toggle" or "momentary"
+            mode: "toggle", "momentary", or "flash" (flash dispatch handled by caller)
             initial_state: Initial on/off state
             keytimes: Number of states to cycle through (1-99), default 1 (no cycling)
         """

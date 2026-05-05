@@ -6,24 +6,6 @@
 - Read and understand the full project context, goals, and constraints.
 - Review the **Design Document**: [docs/plans/2026-01-23-custom-firmware-design.md](docs/plans/2026-01-23-custom-firmware-design.md)
 
-## Persona
-
-You are an **Embedded Firmware Developer**, **MIDI expert**, and **Product Engineer** with deep expertise in:
-
-- **CircuitPython** development on RP2040-based boards (Raspberry Pi Pico platform)
-- **MIDI protocol** — USB MIDI, serial MIDI (UART at 31250 baud), and bidirectional communication
-- **Display drivers** (ST7789) and **addressable LEDs** (NeoPixels/WS2812)
-- **Footswitch and input scanning** — digital GPIO with pull-up configurations
-- **Product thinking** — UX, feature design, user feedback, long-term roadmap
-
-You approach problems with both engineering rigor and product sensibility.
-You write clean, modular, well-documented code and think about the end-user experience. 
-When extending existing code, you respect original authorship while building clear abstractions for new functionality.
-You adhere to DRY (Don't Repeat Yourself) and YAGNI (You Aren't Going to Need It) principles.
-You prefer simple, easy-to-maintain code over complex solutions.
-
----
-
 ## Project Context
 
 This repository creates **custom CircuitPython firmware** for Paint Audio MIDI Captain foot controllers — a **generic, config-driven, bidirectional MIDI firmware** suitable for diverse performance scenarios.
@@ -49,54 +31,6 @@ This is a **live performance tool**. The device must:
 - **Never crash** — defensive coding, graceful error handling, no unhandled exceptions
 - **Never lose state** — if host connection drops, device continues functioning locally
 - **Never surprise the performer** — predictable behavior in all scenarios
-
----
-
-## Design Decisions (from Brainstorming)
-
-These decisions were made during the 2026-01-23 brainstorming session:
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| **Source of truth** | Hybrid | Local state for instant feedback, host overrides when it speaks |
-| **MIDI types** | CC + PC + SysEx + Notes | Full protocol support; Notes enable tuner display |
-| **Display MVP** | Button label slots | Each switch gets a labeled area; center status area later |
-| **Config format** | JSON | Standard, predictable, web-tool-friendly (originally planned YAML, shipped JSON) |
-| **Architecture** | Polling loop | Polling-based main loop (asyncio unavailable in CP 7.x) |
-| **Button modes** | All | Momentary, toggle, long-press, double-tap, tap tempo (phased rollout) |
-
-### Feature Priority (MVP)
-
-| Priority | Feature | Status |
-|----------|---------|--------|
-| 1 | Bidirectional CC (host → device LED sync) | ✅ Working |
-| 2 | Button label slots on screen | ✅ Working |
-| 3 | JSON config for button→MIDI mappings | ✅ Working |
-| 4 | Momentary + Toggle modes per button | ✅ Working |
-| 5 | Multi-device support (STD10 + Mini6 + NANO4 + DUO2 + ONE) | ✅ Working |
-| 6 | SysEx for dynamic labels/colors | Post-MVP |
-| 7 | Long-press detection | Post-MVP |
-| 8 | Center status area | Post-MVP |
-
----
-
-## Prior Art & Reference Implementations
-
-### Paint Audio OEM SuperMode Firmware
-- **Docs**: `docs/FW-SuperMode-4.0-BriefGuide.txt`, `docs/Super_Mode_V1.2.en.pdf`
-- **Strengths**: Keytimes (multi-press cycling), 99 pages, 3-segment LED control, HID keyboard
-- **Weaknesses**: No bidirectional MIDI: device can't respond to host state changes
-
-### Helmut Keller's Firmware
-- **Code**: `firmware/original_helmut/code.py`
-- **Docs**: `docs/a midi foot controller...pdf`, `docs/GLOBAL RACKSPACE Script...gpscript`
-- **Strengths**: Bidirectional CC/SysEx, tuner mode, clean asyncio architecture
-- **Weaknesses**: Hardcoded to Helmut's workflow, fixed CC mapping, STD10-only
-
-### PySwitch (Tunetown)
-- **Repo**: https://github.com/Tunetown/PySwitch
-- **Strengths**: Action/callback architecture, web config tool, multi-device support
-- **Weaknesses**: Complex architecture, heavily Kemper-focused, Python config (not YAML)
 
 ---
 
@@ -347,37 +281,7 @@ When adding a new device, update ALL of these files (copy-paste between variants
 
 ### Reverse Engineering New Device Variants
 
-Follow this sequence (proven on Mini6, NANO4, DUO2, and ONE):
-
-1. **Pin scanner** — scan all GPIO pins as digital inputs with pull-ups, print which go LOW on each switch press
-2. **NeoPixel probe** — light LEDs one at a time on GP7 to find count and chain order, then groups of 3 for per-switch mapping
-3. **DIP switch probe** — if GPIO scan shows pins strongly pulled LOW at baseline, test if flipping DIP switches changes them (DUO2/ONE have DIP switches on GP0-GP3)
-4. **Display discovery** — try ST7789 first, but if it fails (`ImportError` or no response), the device may have a segmented LCD via UART or other protocol. Use OEM module inspection (step 5).
-5. **OEM module inspection** — the most powerful technique for unknown protocols. Write a `code.py` that `import`s the OEM module, catches `KeyboardInterrupt`, then inspects `sys.modules` to dump the module's globals (UART objects with `.baudrate`, display buffers, digit encodings). This revealed the DUO2's proprietary UART display protocol when all common protocols (TM1637, HT1621, MAX7219) failed.
-
-Scripts go in `firmware/dev/experiments/` and get deployed as `code.py` on the device. Don't assume pin mappings or display types from other variants.
-
-### Adding a New Device Variant — Checklist
-
-Update ALL of these files (missed items caused real bugs across DUO2/ONE1 work):
-
-1. `firmware/dev/devices/{device}.py` — pin definitions
-2. `firmware/dev/config-{device}.json` — template config
-3. `firmware/dev/code.py` — device detection allow-list + module import block
-4. `firmware/dev/boot.py` — boot switch pin if different from GP1
-5. `config-editor/src-tauri/src/config.rs` — `DeviceType` enum + button count match + validation
-6. `config-editor/src-tauri/src/device.rs` — `is_midi_captain_config` + `parse_midi_captain_config` match arms
-7. `config-editor/src/lib/types.ts` — `DeviceType` union
-8. `config-editor/src/lib/formStore.ts` — all device capability maps (button count, encoder, expression, TFT)
-9. `config-editor/src/lib/validation.ts` — device-specific constraints
-10. `config-editor/src/lib/components/DeviceSection.svelte` — dropdown + help text
-11. `config-editor/src/lib/components/ButtonsSection.svelte` — `DEVICE_BUTTON_NAMES` + `isDisabled`
-12. `tools/deploy.sh` — `VALID_DEVICES`, config scan loop, config selection, fallback deploy
-13. `.github/workflows/ci.yml` — mpy-cross compilation loop
-14. `docs/hardware-reference.md` — full hardware section
-15. `AGENTS.md` — device lists, file tables, detection docs
-
-**Tip:** Grep for an existing device name (e.g., `duo2`) across the repo to find any additional references.
+See [docs/midicaptain_reverse_engineering_handoff.md](docs/midicaptain_reverse_engineering_handoff.md) for the proven probe sequence. Scripts go in `firmware/dev/experiments/` and get deployed as `code.py` on the device.
 
 ---
 
@@ -454,56 +358,7 @@ Device config files (`config*.json`) are included dynamically via glob in both p
 
 ### Emulator Testing (Wokwi)
 
-Headless firmware testing using **Wokwi CLI** — runs actual CircuitPython 7.3.3 on a simulated RP2040.
-
-#### How it works
-`wokwi-cli` uploads a UF2 to Wokwi's cloud simulator and streams serial output back. The key challenge: the CLI does **not** inject project files into CircuitPython's flash filesystem (that's a browser-only feature). The solution is an **all-in-one UF2** that bundles the CP runtime + a FAT12 filesystem containing our firmware.
-
-`emulator/build-uf2.py` creates this bundle:
-1. Formats a 1MB FAT12 image using `pyfatfs` (pure Python, cross-platform)
-2. Populates it with `code.py`, `boot.py`, `config.json`, `core/`, `devices/`, `lib/`, `fonts/`
-3. Converts the FAT image to UF2 blocks at flash offset `0x10100000`
-4. Concatenates with the CircuitPython 7.3.3 firmware UF2
-
-#### Usage
-```bash
-pip install pyfatfs                         # one-time
-./emulator/setup.sh                         # downloads CP UF2, builds firmware-bundle.uf2
-export WOKWI_CLI_TOKEN=your_token           # from https://wokwi.com/dashboard/ci
-./emulator/test.sh                          # automated: --expect-text "MIDI CAPTAIN" --fail-text "Traceback"
-./emulator/run.sh                           # interactive
-```
-
-#### Directory layout
-```
-emulator/
-├── build-uf2.py          # Builds all-in-one UF2 (requires pyfatfs)
-├── setup.sh              # Downloads CP UF2, runs build-uf2.py
-├── test.sh               # wokwi-cli automated test
-├── run.sh                # wokwi-cli interactive mode
-├── wokwi.toml            # Points firmware at firmware-bundle.uf2
-├── diagram.json          # STD10 hardware model for Wokwi simulator
-├── test-boot.yaml        # Automation scenario (button press simulation, alpha)
-├── configs/              # Test configs using correct firmware schema
-├── firmware-bundle.uf2   # Generated — gitignored
-└── circuitpython.uf2     # Downloaded — gitignored
-```
-
-#### What it can test
-Firmware boot, config loading/parsing, device detection, button/encoder/expression init, MIDI message sending, display init (font loading), main loop execution.
-
-#### What it cannot test
-NeoPixel/display visual rendering (code runs, no visual output), GP23/24/25 buttons (internal Pico pins not exposed in Wokwi), real USB MIDI communication.
-
-#### Gotchas
-- **`wokwi-cli` requires `firmware` field** in `wokwi.toml` — it's a hard requirement, not optional for CircuitPython
-- **GP23, GP24, GP25 are not available** on Wokwi's `wokwi-pi-pico` — valid pins are GP0–GP22 and GP26–GP28. The MIDI Captain PCB uses these internal pins for 3 switches; they can't be wired in the diagram but the firmware runs fine (switches float HIGH with pull-ups)
-- **NeoPixel part type** is `wokwi-neopixel` (not `wokwi-neopixel-ring`); pins are `DIN`/`DOUT`/`VDD`/`VSS` (not `VCC`/`GND`)
-- **CircuitPython filesystem is read-only from serial** — `storage.remount()` fails with `Cannot remount '/' when visible via USB` unless called from `boot.py` before USB init. This is why file injection via mpremote/REPL doesn't work.
-- **`pyfatfs` API**: must create the image file first (`f.truncate(size)`), then call `PyFat.mkfs()`, then open with `PyFatFS()`. There is no `create=True` parameter.
-- **UF2 block renumbering**: when concatenating two UF2s, all `block_no` and `total_blocks` fields must be rewritten across both halves
-- **Free tier**: 50 CI minutes/month — sufficient for weekly runs, not per-push. Pro is $25/seat/mo for 2,000 minutes.
-- **`rp2040js-circuitpython` is a dead end** — has no CLI argument parsing, no `--image`/`--fs` flags, no filesystem injection. PR #33 was based on non-existent features.
+See [emulator/README.md](emulator/README.md) for full setup, usage, and gotchas. Runs actual CircuitPython 7.3.3 on a simulated RP2040 via an all-in-one UF2 bundle. Free tier: 50 CI minutes/month (sufficient for weekly runs, not per-push).
 
 ### Rust Tests (Config Editor)
 Unit tests for the Tauri backend live in `config-editor/src-tauri/src/` (in `config.rs` and `device.rs`). Notably, `test_roundtrip_all_shipped_configs` parses every `firmware/dev/config*.json` file as both `serde_json::Value` and `MidiCaptainConfig`, then asserts every key survives serialize → deserialize through the typed struct. This catches "Rust struct missing a field" silent data loss for any new shipped config without needing a per-feature test.
@@ -529,40 +384,11 @@ These tests are also run in CI (see the `test-config-editor-rust` job in `ci.yml
 
 ## Code Signing
 
-### Apple Developer certificates for signing macOS installer packages
+See [docs/macos-code-signing.md](docs/macos-code-signing.md) for full setup. Team ID: `9WNXKEF4SM`.
 
-| Certificate | Identity | SHA-1 |
-|-------------|----------|-------|
-| Developer ID Installer | `Developer ID Installer: Maximilian Cascone (9WNXKEF4SM)` | `09343E41A538CB1790C9B606B4F9EEFAC3C4526F` |
-| Developer ID Application | `Developer ID Application: Maximilian Cascone (9WNXKEF4SM)` | `7F2FE45B164AC203FF080FB228C96E3DB212A5A6` |
+**Notarization 403:** Apple updated the Developer Program License Agreement — Account Holder must accept at App Store Connect, then re-run the failed CI job. No code change needed.
 
-**Team ID:** `9WNXKEF4SM`
-
-See [docs/macos-code-signing.md](docs/macos-code-signing.md) for full setup guide.
-
-**Notarization 403 "agreement missing or expired":** Apple periodically updates the Developer Program License Agreement and freezes notarization until the team's Account Holder accepts the new terms. The CI step fails with `HTTP status code: 403. A required agreement is missing or has expired`. Fix: Account Holder logs into [App Store Connect](https://appstoreconnect.apple.com), accepts pending agreements (usually shown as a banner or under Agreements/Tax/Banking), then re-runs the failed CI job. No code change needed.
-
-### GPG Signing Key for Linux distributions
-
-In use, details pending
-
----
-
-## Licensing
-
-**Copyright (c) 2026 Maximilian Cascone** — All rights reserved.
-
-This firmware is proprietary software. You may use it freely for personal or commercial purposes (performances, recordings, etc.), but ***you may not sell, redistribute modified versions, or bundle it without permission***.
-
-**Attribution to Helmut Keller:** This project was inspired by firmware originally created by Helmut Keller (https://www.helmutkelleraudio.de/). The original reference code in `firmware/original_helmut/` remains his work, preserved unmodified with his permission:
-
-> "My code is available on my website only.
-> Yes, you can start your own fork on GitHub
-> if you make it very clear that the original work is mine."
-
-- Original code in `firmware/original_helmut/` is Helmut Keller's work
-- New code in `firmware/dev/` is owned by Maximilian Cascone
-- See `LICENSE` file for full terms and permitted uses
+**GPG signing key for Linux:** In use, details pending.
 
 ---
 
@@ -570,55 +396,18 @@ This firmware is proprietary software. You may use it freely for personal or com
 
 Track features, bugs, and future work via [GitHub Issues](https://github.com/MC-Music-Workshop/midi-captain-max/issues) and [Projects](https://github.com/orgs/MC-Music-Workshop/projects/1/views/1).
 
-### Phase 1: Experiments
-- [x] Bidirectional MIDI demo (`experiments/bidirectional_demo.py`)
-- [x] Device abstraction started (`devices/std10.py`)
-- [x] Design document written
-- [x] CI/CD pipelines working (lint, syntax check, release packaging)
-- [x] Test demo on STD10 hardware (2026-01-26: switches + LEDs + bidirectional CC working)
-- [x] Display layout experiment (`experiments/display_demo.py`, `midi_display_demo.py`)
-- [x] JSON config loading experiment (`experiments/config_demo.py`, `config.json`)
-- [x] PCF font support (20pt for status, built-in for buttons)
-- [x] Hardware reference doc (`docs/hardware-reference.md`)
-
-### Phase 2: MVP Integration
-- [x] Merge experiments into main `code.py`
-- [x] Mini6 device module (`devices/mini6.py`)
-- [x] Auto-detect device type at runtime
-- [x] CI/CD: Build firmware zip on every push, release on tag
-- [x] Complete JSON config schema
-
-### Phase 3: GUI Config Editor
-- [x] GUI Config editor app
-- [x] Multi-type button support (CC, Note, PC, PC+, PC-)
-- [x] Keytimes cycling with per-state overrides
-- [x] Display settings section
-- [x] Per-button flash duration (PC types)
-- [x] Custom USB drive naming (`usb_drive_name` in config + GUI field)
-- [x] Dev vs Performance mode (`dev_mode` in config + GUI checkbox)
-
 ### Future
-- [x] 5-pin DIN MIDI output + thru (mirrored from USB; GP16 TX / GP17 RX / 31250 baud) — 2026-03-13
 - [ ] Separate USB vs DIN MIDI configuration (deferred — adds complexity, low priority)
-- [ ] **Scripting / MIDI Transform Engine** — allow users to define rules that trigger on incoming MIDI and produce outgoing MIDI or internal actions. The Captain becomes a standalone MIDI brain: transpose, remap, filter, merge, split, and transform MIDI between DIN and USB without a computer. Analogous to Gig Performer GP Script, Bome MIDI Translator, MIDIStroke, LoopBe, etc. — but running on the device itself.
-  - Config-driven first: a `scripts` or `rules` section in `config.json` mapping trigger conditions to actions (e.g. `{ "on": {"type": "cc", "cc": 5, "value": ">63"}, "send": {"type": "pc", "program": 2} }`)
-  - Scripting language second (higher complexity): a minimal interpreted DSL in CircuitPython (line-by-line eval or pre-compiled to a simple bytecode). Look at GP Script / Pawn / Lua as inspiration for syntax.
-  - Marketing angle: *"The Captain is the brain of your rig"* — not just a footswitch, but a real-time MIDI processor and rules engine that replaces desktop MIDI utility apps on stage.
-- [ ] CI workflow DRY: `Setup Node.js` + `Install frontend dependencies` duplicated between `build-config-editor-macos` and `build-config-editor-windows` — could be a composite action
-- [ ] Release workflow DRY: find/rename/warn pattern in `Prepare release assets` repeats 3× (DMG, MSI, NSIS) — could be a shell function
+- [ ] **Scripting / MIDI Transform Engine** — config-driven rules triggering on incoming MIDI to produce outgoing MIDI or internal actions. Config-driven first (`scripts`/`rules` section in `config.json`), scripting DSL second.
+- [ ] CI workflow DRY: `Setup Node.js` + `Install frontend dependencies` duplicated between macOS and Windows editor jobs — could be a composite action
+- [ ] Release workflow DRY: find/rename/warn pattern in `Prepare release assets` repeats 3× — could be a shell function
 - [ ] Windows Signing Cert
-- [x] NANO4 device support (4-switch variant) — hardware probed 2026-04-01, device module + firmware + config editor
-- [x] DUO2 device support (2-switch variant) — UART segmented LCD reverse-engineered, device module + firmware + config editor
-- [x] ONE1 device support (1-switch variant) — same UART display protocol as DUO2, device module + firmware + config editor
-- [x] USB HID keyboard/mouse button type (`"hid"`) — OEM key names, modifiers, press/release/send/delay actions, mouse buttons, keytimes overrides (2026-04-28)
 - [ ] Custom display layouts
 - [ ] SysEx protocol documentation
 - [ ] Keytimes / multi-press cycling
-- [ ] Double-press detection (like double-click)
+- [ ] Double-press detection
 - [ ] Long-press detection
 - [ ] Pages / banks
-
----
 
 ---
 
@@ -716,8 +505,8 @@ Save button → saveToDevice()
 1. Strips type-irrelevant fields from each button based on `button.type`:
    - `cc` type: keeps `cc`, `cc_on`, `cc_off`
    - `note` type: keeps `note`, `velocity_on`, `velocity_off`
-   - `pc` type: keeps `program`, `flash_ms`
-   - `pc_inc`/`pc_dec`: keeps `pc_step`, `flash_ms`
+   - `pc` type: keeps `program`, `flash_ms` (only when `mode` is `flash` or unset)
+   - `pc_inc`/`pc_dec`: keeps `pc_step`, `flash_ms` (only when `mode` is `flash` or unset)
 2. Strips `display: {}` if no display fields were set (avoids writing empty object)
 
 ### `setNestedValue` Path Format
@@ -751,7 +540,11 @@ Save button → saveToDevice()
 ### `mode` vs `off_mode` Per Button Type
 
 From firmware `code.py`:
-- **`mode` (toggle/momentary)**: used by CC and Note types only. PC types only fire on `pressed`, so mode is irrelevant. GUI shows Switch Mode only for `isCC || isNote`.
+- **`mode` (toggle/momentary/flash)**: applies to CC, Note, and PC types.
+  - CC/Note: `"toggle"` (default) = latching on/off; `"momentary"` = on while held.
+  - PC/pc_inc/pc_dec: `"flash"` (default) = brief LED flash on press; `"toggle"` = latching LED that persists between presses; `"momentary"` = LED on while button is held.
+  - For PC types, MIDI message is always sent on press regardless of mode.
+  - GUI shows LED Mode selector for CC, Note, and PC types. Flash option only appears for PC types.
 - **`off_mode` (dim/off)**: LED appearance when button is "off" — applies to all types. GUI always shows it.
 
 ### Accessibility Conventions
@@ -764,29 +557,6 @@ The config editor is held to **0 svelte-check warnings**. When adding form contr
 - Modal dialogs need `role="dialog"`, `aria-modal="true"`, `aria-labelledby`, `tabindex="-1"`, and an Escape key handler.
 - Backdrops with click handlers need `role="presentation"` + `tabindex="-1"` + an `onkeydown` handler (Enter/Space to activate).
 - If a `$state` variable intentionally captures a prop's initial value (like `Accordion.svelte`'s `defaultOpen`), document the intent and use `// svelte-ignore state_referenced_locally`.
-
----
-
-## Config JSON Schema
-
-The config format is fully defined in [`config.schema.json`](config.schema.json) (JSON Schema draft-07). This is the single source of truth — see "Schema-Driven Config Types" above for the workflow when adding fields.
-
-**`usb_drive_name`** — label applied to the FAT32 volume when USB is enabled. Defaults to `"MIDICAPTAIN"`. Configurable in the GUI "Device Settings" section. Validation rules (enforced by `validate_usb_drive_name()` in `core/config.py`): max 11 chars, uppercase alphanumeric + underscore only, auto-uppercased, special chars stripped, empty/all-invalid falls back to `"MIDICAPTAIN"`.
-
-Tooling support for custom names:
-- **`deploy.sh`** reads `usb_drive_name` from `config.json`, `config-one1.json`, `config-duo2.json`, `config-mini6.json`, and `config-nano4.json` and adds them to the mount-point search. Candidate order: `CIRCUITPY`, `MIDICAPTAIN`, then any `usb_drive_name` values found in local configs. Checked under `/Volumes/`, `/media/$USER/`, `/run/media/$USER/`.
-- **GUI config editor** detects devices by volume name *and* config content. Known names (`CIRCUITPY`, `MIDICAPTAIN`) are always accepted. Custom-named volumes are accepted only when the config.json inside them (a) has a known `"device"` value (`"std10"`, `"mini6"`, `"nano4"`, `"duo2"`, or `"one1"`), and (b) the `usb_drive_name` in that config matches the actual volume name (case-insensitive). This cross-check prevents a stray config.json on an unrelated volume from being treated as a device. The same cross-check applies in `validate_device_path()` (path security gate in `commands.rs`).
-
-**`dev_mode`** — boolean controlling USB drive mount behaviour at boot:
-
-| Value | Mode | USB drive behaviour |
-|-------|------|---------------------|
-| `false` (default) | **Performance** | Hidden on boot; hold Switch 1 (GP1) while powering on to temporarily mount |
-| `true` | **Development** | Always mounts on every boot — no switch press needed |
-
-`boot.py` logic: `enable_usb_drive = dev_mode or switch_held`. Dev mode overrides the switch gate entirely. Configurable via the GUI "Device Settings" checkbox.
-
-Channels are stored as 0-15 internally; displayed as 1-16 in the GUI. The conversion is in `ButtonRow.svelte` `handleChannelChange` (subtract 1 on input) and `effectiveChannel`/`displayChannel` derived values (add 1 for display).
 
 ---
 
@@ -810,13 +580,16 @@ The font is loaded at startup based on `display_config["status_text_size"]`. `la
 
 ## Firmware Patterns
 
-### PC Button Flash
+### PC Button LED Modes
 
-PC buttons flash the LED on press for feedback (they have no persistent on/off state). Implementation:
+PC buttons support three LED modes (set via `mode` field; MIDI is always sent on press regardless):
+- **`flash`** (default): brief LED pulse on press. Uses `flash_pc_button()` + `pc_flash_timers[]`. Duration configurable via `flash_ms` (default `PC_FLASH_DURATION_MS = 200` ms, range 50–5000).
+- **`toggle`**: latching — `btn_state.state` flips on press, LED persists until next press.
+- **`momentary`**: LED on while held, cleared on release.
+
+Flash timer implementation:
 - `pc_flash_timers[]` array stores **expiry time** as `time.monotonic() + flash_ms / 1000.0` (one slot per button)
 - `update_pc_flash_timers()` called every main loop: compares `time.monotonic()` to expiry, turns LED off when expired
-- `flash_pc_button(btn_idx, flash_ms)` sets LED on and stores expiry
-- Default: `PC_FLASH_DURATION_MS = 200` (ms). Configurable per button via `flash_ms` in config.
 - **Important**: uses `time.monotonic()` not loop-tick counting — the main loop has no sleep so tick count is unreliable.
 
 ### Main Loop Structure
@@ -915,40 +688,21 @@ if enable_usb_drive:
 | Path | Purpose |
 |------|---------|
 | `firmware/dev/code.py` | **Active**: Unified firmware with config, display, bidirectional MIDI |
-| `firmware/dev/boot.py` | Disables autoreload; USB drive gated by `dev_mode` config flag or Switch 1 hold; applies custom drive label |
-| `firmware/dev/config.json` | STD10 default config (button labels, CC numbers, colors, drive name, dev_mode) |
-| `firmware/dev/config-one1.json` | ONE template config (copy to device as config.json) |
-| `firmware/dev/config-duo2.json` | DUO2 template config (copy to device as config.json) |
-| `firmware/dev/config-mini6.json` | Mini6 template config (copy to device as config.json) |
-| `firmware/dev/config-nano4.json` | NANO4 template config (copy to device as config.json) |
-| `firmware/dev/VERSION` | Firmware version (generated, gitignored) |
+| `firmware/dev/boot.py` | Disables autoreload; USB drive gated by `dev_mode` or Switch 1 hold; applies custom drive label |
+| `firmware/dev/config.json` | STD10 default config |
+| `firmware/dev/config-{device}.json` | Per-device template configs (one1, duo2, mini6, nano4) |
 | `firmware/dev/core/config.py` | Config loading; `get_usb_drive_name()`, `validate_usb_drive_name()`, `get_dev_mode()`, `get_display_config()`; `STATE_OVERRIDE_FIELDS` |
-| `firmware/dev/core/hid.py` | HID dispatch: `KEY_TABLE`, `MODIFIER_TABLE`, `dispatch_hid()`; single-action per call, refactorable for future multi-action |
+| `firmware/dev/core/hid.py` | HID dispatch: `KEY_TABLE`, `MODIFIER_TABLE`, `dispatch_hid()` |
 | `firmware/dev/core/button.py` | `ButtonState` class: toggle/momentary mode, keytimes cycling |
 | `firmware/dev/core/colors.py` | Color palette and `get_off_color()` utilities |
-| `firmware/dev/devices/std10.py` | STD10 hardware constants (10 switches, encoder, expression, ST7789 display) |
-| `firmware/dev/devices/mini6.py` | Mini6 hardware constants (6 switches, ST7789 display) |
-| `firmware/dev/devices/nano4.py` | NANO4 hardware constants (4 switches, ST7789 display) |
-| `firmware/dev/devices/duo2.py` | DUO2 hardware constants (2 switches, DIP switches, UART segmented LCD) |
-| `firmware/dev/devices/one1.py` | ONE1 hardware constants (1 switch, DIP switches, UART segmented LCD) |
-| `firmware/original_helmut/code.py` | Helmut's original firmware (reference only, DO NOT MODIFY) |
+| `firmware/dev/devices/{device}.py` | Per-device hardware constants (std10, mini6, nano4, duo2, one1) |
+| `firmware/original_helmut/code.py` | Helmut's original firmware — DO NOT MODIFY |
+| `config.schema.json` | JSON Schema (draft-07) — single source of truth for config format |
 | `tools/deploy.sh` | Dev deploy to device (rsync, VERSION, device detection) |
 | `docs/hardware-reference.md` | Verified hardware specs, auto-detection docs |
-| `docs/screen-cheatsheet.md` | Serial console (screen) usage guide |
 | `docs/plans/2026-01-23-custom-firmware-design.md` | Full design document |
 | `.github/workflows/ci.yml` | CI: lint, syntax check (CP 7.x guards), build firmware zip |
 | `.github/workflows/release.yml` | Create GitHub Release on version tag |
-| `config-editor/src/routes/+page.svelte` | App shell: device selector, save/reload/reset |
-| `config-editor/src/lib/formStore.ts` | Form state, undo/redo, `updateField`, `normalizeConfig`, `loadConfig` |
-| `config.schema.json` | JSON Schema (draft-07) — single source of truth for config format |
-| `config-editor/src/lib/types.generated.ts` | Auto-generated TypeScript types from schema (`npm run generate:types`) |
-| `config-editor/src/lib/types.ts` | Re-exports generated types + UI-only types (`DetectedDevice`, `ConfigError`, `BUTTON_COLORS`) |
-| `config-editor/src/lib/validation.ts` | Client-side validation; must mirror Rust validation in `config.rs` |
-| `config-editor/src/lib/components/ButtonRow.svelte` | Per-button form row; `onUpdate` callback prop |
-| `config-editor/src/lib/components/DeviceSection.svelte` | Device type, global channel, USB drive name, and dev mode fields |
-| `config-editor/src-tauri/src/config.rs` | Rust config structs + validation + round-trip tests; must mirror `config.schema.json` |
-| `config-editor/src-tauri/src/commands.rs` | Tauri IPC commands: read/write/validate, path security |
-| `config-editor/src-tauri/src/device.rs` | USB device detection and hot-plug watcher |
 
 ---
 
@@ -1006,34 +760,3 @@ The Rust installer at `config-editor/src-tauri/src/installer.rs` mirrors `deploy
 - **Manifest reflects what's on the device, not what's in the bundle.** Build `final_manifest` during plan execution from Copy/Skip ops only; for `config_preserved` cases hash the actual on-device `config.json` (its bytes differ from the bundled template). This avoids the manifest claiming files exist that the installer never copied (e.g. `config-example-*.json`).
 - **Pre-flight halt is best-effort.** `commands::halt_and_disable_autoreload` is wrapped in `let _ =` because the serial port may be held by `tio`/`screen`, and `boot.py` already disables autoreload on every flashed device — failing the install on a serial-busy condition is too brittle.
 
----
-
-## Memory & Knowledge Persistence (Guiding Principle)
-
-**Always write findings to memory — never relearn something twice.**
-
-- After any investigation, bug fix, or feature implementation, record what was discovered in `AGENTS.md` under the relevant section.
-- If a finding is generic enough to apply across all repos (workflow insight, platform quirk, tooling pattern), also write it to `~/.claude/CLAUDE.md` (global persona memory).
-- Update existing sections rather than appending stale duplicates — keep entries current and accurate.
-- This applies to: hardware pin confirmations, CircuitPython quirks, architectural decisions, things that were broken and why, things tried that didn't work, and any non-obvious implementation detail.
-
----
-
-## Communication Style
-
-- Be concise and technical
-- Prefer working code over lengthy explanations
-- When proposing changes, provide complete, runnable implementations
-- Document decisions and trade-offs in commit messages or docs
-
-## Pull Request Guidelines
-
-- When making a PR, include a clear description of the change, the rationale, and any relevant context
-- Reference related issues or design docs
-- Ensure all CI checks pass before requesting review
-- Reviewers should focus on correctness, readability, and maintainability
-- Once a PR Title and description are fully filled out, don't change them — they serve as the source of truth for the change history and rationale. If you need to clarify or update information, add notes or comments to the existing description rather than rewriting it. This preserves the original context and decision-making process for future reference.
-- Do not include details on changes made during iteration in the PR description. The description should reflect the final state of the code after all iterations, not the process of getting there. This keeps the change history clean and focused on the end result rather than the development process. That being said, any important discoveries or decisions made during iteration that are relevant to understanding the final code should be documented in the PR description or in linked design docs, but not as a step-by-step account of the iteration process.
-
-### Pull Request Examples
-- Read the file docs/PR_Examples/example1.md for an example of a well-structured PR description that provides clear context, rationale, and references to design documents. This style should be followed for all PRs to ensure clarity and maintainability of the project history.
