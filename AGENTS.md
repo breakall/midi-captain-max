@@ -100,6 +100,18 @@ cd config-editor && npm run check                # TypeScript / Svelte
 cd config-editor && npm run generate:types       # regenerate types from schema
 ```
 
+### Linting
+
+Lint is folded into `./tools/test-all.sh`, which runs `ruff` (Python) and `cargo clippy` (Rust) alongside the test suites. Run that script at the verification checkpoint — once before claiming completion or requesting review, not after every edit.
+
+`pyproject.toml` configures ruff to ignore four rules that flag deliberate codebase patterns (`E402`, `E712`, `F401`, `F403`); see the comments in that file for rationale before adding new exceptions. `cargo clippy` runs warnings-only — there are two pre-existing warnings on untouched code that should be addressed in a separate cleanup pass, not silently muted.
+
+To run lint alone (without the full test suite):
+```bash
+ruff check firmware/ tests/                                   # Python
+cd config-editor/src-tauri && cargo clippy --lib --no-deps    # Rust
+```
+
 ### Dependencies
 - **`requirements-dev.txt`**: CI/dev tools (ruff, pytest)
 - **`requirements-circuitpython.txt`**: On-device libraries for `circup install -r`
@@ -119,3 +131,6 @@ Track features and bugs via [GitHub Issues](https://github.com/MC-Music-Workshop
 - [ ] SysEx protocol documentation
 - [ ] Keytimes / multi-press cycling, double-press, long-press detection
 - [ ] Pages / banks
+- [ ] Firmware press-handler unit tests for select-mode (`handle_pc_select_press`, `handle_cc_select_press`, `update_select_group`, and the RX hooks in `_process_midi_msg`). Validator coverage exists; runtime coverage does not. Mock infrastructure in `tests/mocks/` should support this.
+- [ ] Tighten `pyproject.toml` ruff ignores: `F401` is currently global; should be scoped via `[tool.ruff.lint.per-file-ignores]` so genuinely-unused imports in production code get caught. Test-mock re-exports under `tests/mocks/**` are the legitimate use.
+- [ ] Decide encoder-push `mode: "select"` handling. Auto-generated TS now allows it on `EncoderPush.mode` (shared `ButtonMode` enum), but encoder push has no `select_group` field and the editor doesn't expose it. Options: separate `EncoderButtonMode` enum (without `Select`), explicit validator rejection, or document as silently allowed/no-op.
