@@ -10,7 +10,7 @@ except ImportError:
     # CircuitPython has json built-in, but just in case
     json = None
 
-VALID_TYPES = ("cc", "note", "pc", "pc_inc", "pc_dec", "hid")
+VALID_TYPES = ("cc", "note", "pc", "pc_inc", "pc_dec", "hid", "tempo_tap")
 STATE_OVERRIDE_FIELDS = ("cc", "cc_on", "cc_off", "note", "velocity_on", "velocity_off", "program", "pc_step", "color", "label", "hid_action", "hid_key", "hid_modifier", "hid_delay_ms")
 
 
@@ -47,7 +47,25 @@ def _default_config(button_count):
     }
 
 
-_MIDI_BYTE_FIELDS = ("cc", "cc_on", "cc_off", "note", "velocity_on", "velocity_off", "program")
+_MIDI_BYTE_FIELDS = ("cc", "cc_on", "cc_off", "note", "velocity_on", "velocity_off", "program", "tempo_tap_cc", "tempo_tap_value", "tempo_tuner_cc", "tempo_tuner_on", "tempo_tuner_off")
+
+
+def _clamp_midi_byte(value, default=0):
+    if not isinstance(value, int):
+        return default
+    return max(0, min(127, value))
+
+
+def _clamp_midi_channel(value, default=0):
+    if not isinstance(value, int):
+        return default
+    return max(0, min(15, value))
+
+
+def _clamp_ms(value, default=700, min_value=100, max_value=5000):
+    if not isinstance(value, int):
+        return default
+    return max(min_value, min(max_value, value))
 
 def _clamp_state_field(field, value):
     """Clamp numeric state override fields to valid MIDI ranges. Non-numeric fields pass through."""
@@ -141,17 +159,26 @@ def validate_button(btn, index=0, global_channel=None):
 
     # Type-specific fields
     if msg_type == "cc":
-        validated["cc"] = btn.get("cc", 20 + index)
-        validated["cc_on"] = btn.get("cc_on", 127)
-        validated["cc_off"] = btn.get("cc_off", 0)
+        validated["cc"] = _clamp_midi_byte(btn.get("cc", 20 + index), 20 + index)
+        validated["cc_on"] = _clamp_midi_byte(btn.get("cc_on", 127), 127)
+        validated["cc_off"] = _clamp_midi_byte(btn.get("cc_off", 0), 0)
     elif msg_type == "note":
-        validated["note"] = btn.get("note", 60)
-        validated["velocity_on"] = btn.get("velocity_on", 127)
-        validated["velocity_off"] = btn.get("velocity_off", 0)
+        validated["note"] = _clamp_midi_byte(btn.get("note", 60), 60)
+        validated["velocity_on"] = _clamp_midi_byte(btn.get("velocity_on", 127), 127)
+        validated["velocity_off"] = _clamp_midi_byte(btn.get("velocity_off", 0), 0)
     elif msg_type == "pc":
-        validated["program"] = btn.get("program", 0)
+        validated["program"] = _clamp_midi_byte(btn.get("program", 0), 0)
     elif msg_type in ("pc_inc", "pc_dec"):
-        validated["pc_step"] = btn.get("pc_step", 1)
+        validated["pc_step"] = max(1, _clamp_midi_byte(btn.get("pc_step", 1), 1))
+    elif msg_type == "tempo_tap":
+        validated["tempo_tap_cc"] = _clamp_midi_byte(btn.get("tempo_tap_cc", 63), 63)
+        validated["tempo_tap_value"] = _clamp_midi_byte(btn.get("tempo_tap_value", 127), 127)
+        validated["tempo_tap_channel"] = _clamp_midi_channel(btn.get("tempo_tap_channel", validated["channel"]), validated["channel"])
+        validated["tempo_tuner_cc"] = _clamp_midi_byte(btn.get("tempo_tuner_cc", 68), 68)
+        validated["tempo_tuner_on"] = _clamp_midi_byte(btn.get("tempo_tuner_on", 127), 127)
+        validated["tempo_tuner_off"] = _clamp_midi_byte(btn.get("tempo_tuner_off", 0), 0)
+        validated["tempo_tuner_channel"] = _clamp_midi_channel(btn.get("tempo_tuner_channel", validated["channel"]), validated["channel"])
+        validated["tempo_long_press_ms"] = _clamp_ms(btn.get("tempo_long_press_ms", 700))
 
     # flash_ms stored for all PC types (used by firmware only when mode is flash); clamp to schema range 50-5000
     if msg_type in ("pc", "pc_inc", "pc_dec"):

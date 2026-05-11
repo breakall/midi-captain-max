@@ -36,11 +36,15 @@ from adafruit_midi.control_change import ControlChange
 from adafruit_midi.program_change import ProgramChange
 from adafruit_midi.note_on import NoteOn
 from adafruit_midi.note_off import NoteOff
+from adafruit_midi.timing_clock import TimingClock
+from adafruit_midi.start import Start
+from adafruit_midi.stop import Stop
+from adafruit_midi.midi_continue import Continue
 
 # Import core modules (testable logic)
 from core.colors import COLORS, get_color, dim_color, rgb_to_hex, get_off_color, get_off_color_for_display
 from core.config import load_config as _load_config_from_file, validate_config, get_display_config, get_button_state_config
-from core.button import Switch, ButtonState
+from core.button import Switch, ButtonState, TempoTapState
 from core.hid import dispatch_hid
 
 # =============================================================================
@@ -474,17 +478,28 @@ EXP2_CHANNEL = exp2_config.get("channel", 0)
 
 # Initialize ButtonState objects for each button with keytimes support
 button_states = []
+tempo_tap_states = []
 for i in range(BUTTON_COUNT):
     btn_config = buttons[i] if i < len(buttons) else {}
     cc = btn_config.get("cc", 0)  # 0 for non-CC types; ButtonState.cc unused by note/pc dispatch
     mode = btn_config.get("mode", "toggle")
     keytimes = btn_config.get("keytimes", 1)
     button_states.append(ButtonState(cc=cc, mode=mode, keytimes=keytimes))
+    tempo_tap_states.append(TempoTapState(btn_config.get("tempo_long_press_ms", 700)))
 
 pc_values = [0] * 16                 # Current PC value per MIDI channel (0-15), shared across all pc_inc/pc_dec buttons
 pc_flash_timers = [0.0] * BUTTON_COUNT  # Expiry time (monotonic) for PC button flash; 0 = inactive
 hid_flash_timers = [0.0] * BUTTON_COUNT  # Same for HID buttons
 PC_FLASH_DURATION_MS = 200              # Default PC/HID button flash duration in ms
+
+MIDI_CLOCKS_PER_QUARTER = 24
+TEMPO_BLINK_ON_FRACTION = 0.12
+tempo_clock_count = 0
+tempo_last_clock_time = 0.0
+tempo_quarter_period = 0.5  # 120 BPM fallback until external clock arrives
+tempo_next_beat_time = 0.0
+tempo_has_clock = False
+tempo_blink_on = False
 
 encoder_value = ENC_INITIAL  # Internal value 0-127
 encoder_slot = -1  # Current slot (set on first change)
@@ -851,6 +866,74 @@ def update_pc_flash_timers():
     _expire_flash_timers(hid_flash_timers, now)
 
 
+def _tempo_button_numbers():
+    """Yield 1-indexed button numbers configured as tempo tap buttons."""
+    for i, btn_config in enumerate(buttons):
+        if btn_config.get("type") == "tempo_tap":
+            yield i + 1
+
+
+def set_tempo_blink(on):
+    """Update all tempo tap LEDs without changing their tap/tuner state."""
+    global tempo_blink_on
+    if tempo_blink_on == on:
+        return
+    tempo_blink_on = on
+    for btn_num in _tempo_button_numbers():
+        set_button_state(btn_num, on)
+
+
+def handle_tempo_clock(now):
+    """Track incoming MIDI Clock and schedule quarter-note LED blinks."""
+    global tempo_clock_count, tempo_last_clock_time, tempo_quarter_period
+    global tempo_next_beat_time, tempo_has_clock
+
+    tempo_clock_count += 1
+    if tempo_last_clock_time > 0:
+        pulse_period = now - tempo_last_clock_time
+        if pulse_period > 0:
+            tempo_quarter_period = pulse_period * MIDI_CLOCKS_PER_QUARTER
+    tempo_last_clock_time = now
+
+    if tempo_clock_count >= MIDI_CLOCKS_PER_QUARTER:
+        tempo_clock_count = 0
+        tempo_has_clock = True
+        tempo_next_beat_time = now + tempo_quarter_period
+        set_tempo_blink(True)
+
+
+def update_tempo_blink():
+    """Continue blinking tempo tap LEDs at the last valid MIDI Clock tempo."""
+    global tempo_next_beat_time
+    if not tempo_has_clock:
+        return
+
+    now = time.monotonic()
+    if tempo_blink_on and now >= tempo_next_beat_time - tempo_quarter_period + (tempo_quarter_period * TEMPO_BLINK_ON_FRACTION):
+        set_tempo_blink(False)
+
+    while tempo_next_beat_time > 0 and now >= tempo_next_beat_time:
+        set_tempo_blink(True)
+        tempo_next_beat_time += tempo_quarter_period
+
+
+def poll_tempo_tap_long_presses():
+    """Fire tempo/tuner long-press actions once while a tempo tap is held."""
+    now = time.monotonic()
+    for i, btn_config in enumerate(buttons):
+        if btn_config.get("type") != "tempo_tap":
+            continue
+        tempo_state = tempo_tap_states[i]
+        if tempo_state.poll(now):
+            cc = btn_config.get("tempo_tuner_cc", 68)
+            val = btn_config.get("tempo_tuner_on", 127) if tempo_state.tuner_state else btn_config.get("tempo_tuner_off", 0)
+            channel = btn_config.get("tempo_tuner_channel", btn_config.get("channel", 0))
+            midi_send(ControlChange(cc, val), channel=channel)
+            set_button_state(i + 1, True)
+            print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (switch {i+1}, tempo tuner)")
+            update_status(f"TUNER {'ON' if tempo_state.tuner_state else 'OFF'}")
+
+
 # =============================================================================
 # Polling Functions
 # =============================================================================
@@ -858,12 +941,29 @@ def update_pc_flash_timers():
 
 def _process_midi_msg(msg, source="USB"):
     """Process a received MIDI message — update LED/button state."""
+    global tempo_clock_count
     if not msg:
         return
 
     msg_channel = getattr(msg, 'channel', 0) or 0
 
-    if isinstance(msg, ControlChange):
+    if isinstance(msg, TimingClock):
+        handle_tempo_clock(time.monotonic())
+
+    elif isinstance(msg, Start):
+        tempo_clock_count = 0
+        print(f"[MIDI RX {source}] Start")
+        update_status("RX Start")
+
+    elif isinstance(msg, Continue):
+        print(f"[MIDI RX {source}] Continue")
+        update_status("RX Continue")
+
+    elif isinstance(msg, Stop):
+        print(f"[MIDI RX {source}] Stop")
+        update_status("RX Stop")
+
+    elif isinstance(msg, ControlChange):
         cc = msg.control
         val = msg.value
         print(f"[MIDI RX {source}] Ch{msg_channel+1} CC{cc}={val}")
@@ -1093,6 +1193,22 @@ def handle_switches():
                     btn_state.state = False
                     set_button_state(btn_num, False)
 
+            elif message_type == "tempo_tap":
+                tempo_state = tempo_tap_states[idx]
+                now = time.monotonic()
+                if pressed:
+                    tempo_state.on_press(now)
+                    set_button_state(btn_num, True)
+                else:
+                    if tempo_state.on_release(now):
+                        cc = btn_config.get("tempo_tap_cc", 63)
+                        val = btn_config.get("tempo_tap_value", 127)
+                        tap_channel = btn_config.get("tempo_tap_channel", channel)
+                        midi_send(ControlChange(cc, val), channel=tap_channel)
+                        print(f"[MIDI TX] Ch{tap_channel+1} CC{cc}={val} (switch {btn_num}, tempo tap)")
+                        update_status(f"TAP CC{cc}")
+                    set_button_state(btn_num, tempo_blink_on if tempo_has_clock else False)
+
             elif message_type == "hid" and pressed:
                 btn_state.advance_keytime()
                 state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
@@ -1279,7 +1395,9 @@ print("\nRunning...")
 while True:
     handle_midi()
     handle_switches()
+    poll_tempo_tap_long_presses()
     update_pc_flash_timers()
+    update_tempo_blink()
     if HAS_ENCODER:
         handle_encoder_button()
         handle_encoder()

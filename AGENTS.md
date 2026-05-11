@@ -67,7 +67,7 @@ New code belongs in `firmware/dev/` or new directories (never in `original_helmu
 | `firmware/dev/boot.py` | Disables autoreload; USB drive gating; custom drive label |
 | `firmware/dev/core/config.py` | Config loading, `get_usb_drive_name()`, `validate_usb_drive_name()`, `get_dev_mode()` |
 | `firmware/dev/core/hid.py` | HID dispatch: `KEY_TABLE`, `MODIFIER_TABLE`, `dispatch_hid()` |
-| `firmware/dev/core/button.py` | `ButtonState`: toggle/momentary mode, keytimes cycling |
+| `firmware/dev/core/button.py` | `ButtonState`: toggle/momentary mode, keytimes cycling; `TempoTapState`: short-tap/long-press timing |
 | `firmware/dev/core/colors.py` | Color palette and `get_off_color()` |
 | `firmware/dev/devices/{device}.py` | Per-device hardware constants |
 | `config.schema.json` | JSON Schema (draft-07) — single source of truth for config format |
@@ -129,7 +129,7 @@ Track features and bugs via [GitHub Issues](https://github.com/MC-Music-Workshop
 - [ ] Windows Signing Cert
 - [ ] Custom display layouts
 - [ ] SysEx protocol documentation
-- [ ] Keytimes / multi-press cycling, double-press, long-press detection
+- [ ] Double-press detection
 - [ ] Pages / banks
 - [ ] Firmware press-handler unit tests for select-mode (`handle_pc_select_press`, `handle_cc_select_press`, `update_select_group`, and the RX hooks in `_process_midi_msg`). Validator coverage exists; runtime coverage does not. Mock infrastructure in `tests/mocks/` should support this.
 - [ ] Tighten `pyproject.toml` ruff ignores: `F401` is currently global; should be scoped via `[tool.ruff.lint.per-file-ignores]` so genuinely-unused imports in production code get caught. Test-mock re-exports under `tests/mocks/**` are the legitimate use.

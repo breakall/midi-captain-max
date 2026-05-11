@@ -26,6 +26,7 @@
   let isPC = $derived(msgType === 'pc');
   let isPCIncDec = $derived(msgType === 'pc_inc' || msgType === 'pc_dec');
   let isHID = $derived(msgType === 'hid');
+  let isTempoTap = $derived(msgType === 'tempo_tap');
   let isPCType = $derived(isPC || isPCIncDec);
   let showMode = $derived(isCC || isNote || isPCType || isHID);
   // Select mode (radio group) is valid only on plain PC and CC types.
@@ -150,6 +151,21 @@
     onUpdate('hid_delay_ms', value);
   }
 
+  function handleTempoNumberChange(field: string, e: Event) {
+    const target = e.target as HTMLInputElement;
+    const value = target.value === '' ? undefined : parseInt(target.value);
+    onUpdate(field, value);
+  }
+
+  function handleTempoChannelChange(field: string, e: Event) {
+    const target = e.target as HTMLInputElement;
+    if (target.value === '') {
+      onUpdate(field, undefined);
+    } else {
+      onUpdate(field, parseInt(target.value) - 1);
+    }
+  }
+
   function handleStateHidActionChange(si: number, e: Event) {
     const target = e.target as HTMLSelectElement;
     onUpdate(`states[${si}].hid_action`, target.value === '' ? undefined : target.value);
@@ -173,6 +189,14 @@
 
   let flashMsError = $derived($validationErrors.get(`${basePath}.flash_ms`));
   let hidDelayMsError = $derived($validationErrors.get(`${basePath}.hid_delay_ms`));
+  let tempoTapCcError = $derived($validationErrors.get(`${basePath}.tempo_tap_cc`));
+  let tempoTapValueError = $derived($validationErrors.get(`${basePath}.tempo_tap_value`));
+  let tempoTapChannelError = $derived($validationErrors.get(`${basePath}.tempo_tap_channel`));
+  let tempoTunerCcError = $derived($validationErrors.get(`${basePath}.tempo_tuner_cc`));
+  let tempoTunerOnError = $derived($validationErrors.get(`${basePath}.tempo_tuner_on`));
+  let tempoTunerOffError = $derived($validationErrors.get(`${basePath}.tempo_tuner_off`));
+  let tempoTunerChannelError = $derived($validationErrors.get(`${basePath}.tempo_tuner_channel`));
+  let tempoLongPressMsError = $derived($validationErrors.get(`${basePath}.tempo_long_press_ms`));
 
   let hasKeytimes = $derived((button.keytimes ?? 1) > 1);
   let keytimesError = $derived($validationErrors.get(`${basePath}.keytimes`));
@@ -221,6 +245,14 @@
   // Display button channel as 1-16 if set (stored as 0-15)
   let displayChannel = $derived(
     button.channel !== undefined ? button.channel + 1 : undefined
+  );
+
+  let displayTempoTapChannel = $derived(
+    button.tempo_tap_channel !== undefined ? button.tempo_tap_channel + 1 : undefined
+  );
+
+  let displayTempoTunerChannel = $derived(
+    button.tempo_tuner_channel !== undefined ? button.tempo_tuner_channel + 1 : undefined
   );
 
 </script>
@@ -392,6 +424,65 @@
         {#if hidDelayMsError}<span class="error-text">{hidDelayMsError}</span>{/if}
       </div>
     {/if}
+  {:else if isTempoTap}
+    <div class="field">
+      <label class="field-label" for={fieldId('tempo-tap-cc')}>Tap CC:</label>
+      <input id={fieldId('tempo-tap-cc')} type="number" class="input-cc" class:error={!!tempoTapCcError}
+        value={button.tempo_tap_cc ?? ''} onblur={(e) => handleTempoNumberChange('tempo_tap_cc', e)}
+        disabled={disabled} min="0" max="127" placeholder="63" />
+      {#if tempoTapCcError}<span class="error-text">{tempoTapCcError}</span>{/if}
+    </div>
+    <div class="field">
+      <label class="field-label" for={fieldId('tempo-tap-value')}>Tap Val:</label>
+      <input id={fieldId('tempo-tap-value')} type="number" class="input-cc-value" class:error={!!tempoTapValueError}
+        value={button.tempo_tap_value ?? ''} onblur={(e) => handleTempoNumberChange('tempo_tap_value', e)}
+        disabled={disabled} min="0" max="127" placeholder="127" />
+      {#if tempoTapValueError}<span class="error-text">{tempoTapValueError}</span>{/if}
+    </div>
+    <div class="field">
+      <label class="field-label" for={fieldId('tempo-tap-channel')}>Tap Ch:</label>
+      <input id={fieldId('tempo-tap-channel')} type="number" class="input-channel" class:error={!!tempoTapChannelError}
+        value={displayTempoTapChannel !== undefined ? displayTempoTapChannel : ''}
+        onblur={(e) => handleTempoChannelChange('tempo_tap_channel', e)}
+        disabled={disabled} min="1" max="16" placeholder={effectiveChannel.toString()} />
+      {#if tempoTapChannelError}<span class="error-text">{tempoTapChannelError}</span>{/if}
+    </div>
+    <div class="field">
+      <label class="field-label" for={fieldId('tempo-tuner-cc')}>Tuner CC:</label>
+      <input id={fieldId('tempo-tuner-cc')} type="number" class="input-cc" class:error={!!tempoTunerCcError}
+        value={button.tempo_tuner_cc ?? ''} onblur={(e) => handleTempoNumberChange('tempo_tuner_cc', e)}
+        disabled={disabled} min="0" max="127" placeholder="68" />
+      {#if tempoTunerCcError}<span class="error-text">{tempoTunerCcError}</span>{/if}
+    </div>
+    <div class="field">
+      <label class="field-label" for={fieldId('tempo-tuner-on')}>Tun ON:</label>
+      <input id={fieldId('tempo-tuner-on')} type="number" class="input-cc-value" class:error={!!tempoTunerOnError}
+        value={button.tempo_tuner_on ?? ''} onblur={(e) => handleTempoNumberChange('tempo_tuner_on', e)}
+        disabled={disabled} min="0" max="127" placeholder="127" />
+      {#if tempoTunerOnError}<span class="error-text">{tempoTunerOnError}</span>{/if}
+    </div>
+    <div class="field">
+      <label class="field-label" for={fieldId('tempo-tuner-off')}>Tun OFF:</label>
+      <input id={fieldId('tempo-tuner-off')} type="number" class="input-cc-value" class:error={!!tempoTunerOffError}
+        value={button.tempo_tuner_off ?? ''} onblur={(e) => handleTempoNumberChange('tempo_tuner_off', e)}
+        disabled={disabled} min="0" max="127" placeholder="0" />
+      {#if tempoTunerOffError}<span class="error-text">{tempoTunerOffError}</span>{/if}
+    </div>
+    <div class="field">
+      <label class="field-label" for={fieldId('tempo-tuner-channel')}>Tun Ch:</label>
+      <input id={fieldId('tempo-tuner-channel')} type="number" class="input-channel" class:error={!!tempoTunerChannelError}
+        value={displayTempoTunerChannel !== undefined ? displayTempoTunerChannel : ''}
+        onblur={(e) => handleTempoChannelChange('tempo_tuner_channel', e)}
+        disabled={disabled} min="1" max="16" placeholder={effectiveChannel.toString()} />
+      {#if tempoTunerChannelError}<span class="error-text">{tempoTunerChannelError}</span>{/if}
+    </div>
+    <div class="field">
+      <label class="field-label" for={fieldId('tempo-long-press-ms')}>Hold (ms):</label>
+      <input id={fieldId('tempo-long-press-ms')} type="number" class="input-cc" class:error={!!tempoLongPressMsError}
+        value={button.tempo_long_press_ms ?? ''} onblur={(e) => handleTempoNumberChange('tempo_long_press_ms', e)}
+        disabled={disabled} min="100" max="5000" step="50" placeholder="700" />
+      {#if tempoLongPressMsError}<span class="error-text">{tempoLongPressMsError}</span>{/if}
+    </div>
   {/if}
 
   {#if isPCType && (button.mode ?? 'flash') === 'flash'}
@@ -404,21 +495,23 @@
     </div>
   {/if}
 
-  <div class="field">
-    <label class="field-label" for={fieldId('keytimes')}>Keytimes:</label>
-    <input
-      id={fieldId('keytimes')}
-      type="number"
-      class="input-cc"
-      class:error={!!keytimesError}
-      value={button.keytimes ?? 1}
-      onblur={handleKeytimesChange}
-      disabled={disabled}
-      min="1"
-      max="99"
-    />
-    {#if keytimesError}<span class="error-text">{keytimesError}</span>{/if}
-  </div>
+  {#if !isTempoTap}
+    <div class="field">
+      <label class="field-label" for={fieldId('keytimes')}>Keytimes:</label>
+      <input
+        id={fieldId('keytimes')}
+        type="number"
+        class="input-cc"
+        class:error={!!keytimesError}
+        value={button.keytimes ?? 1}
+        onblur={handleKeytimesChange}
+        disabled={disabled}
+        min="1"
+        max="99"
+      />
+      {#if keytimesError}<span class="error-text">{keytimesError}</span>{/if}
+    </div>
+  {/if}
 
   <div class="field">
     <span class="field-label">LED Color:</span>
@@ -491,7 +584,7 @@
     </select>
   </div>
 
-  {#if hasKeytimes && !disabled}
+  {#if hasKeytimes && !disabled && !isTempoTap}
     <div class="states-section">
       <span class="states-label">States ({button.states?.length ?? 0}):</span>
       {#each (button.states ?? []) as state, si}

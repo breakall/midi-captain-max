@@ -36,6 +36,7 @@ export const MESSAGE_TYPE_LABELS = {
   pc_inc: 'PC+',
   pc_dec: 'PC-',
   hid:    'HID',
+  tempo_tap: 'Tempo Tap',
 } as const satisfies Record<MessageType, string>;
 
 export interface DetectedDevice {

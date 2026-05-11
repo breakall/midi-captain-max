@@ -83,6 +83,12 @@ export const validators = {
     return null;
   },
 
+  longPressMs: (value: number): string | null => {
+    if (!Number.isInteger(value)) return 'Long press duration must be an integer';
+    if (value < 100 || value > 5000) return 'Long press duration must be between 100 and 5000 ms';
+    return null;
+  },
+
   // value is stored as 0-15 (displayed as 1-16)
   channel: (value: number): string | null => {
     if (!Number.isInteger(value)) return 'Channel must be an integer';
@@ -201,6 +207,23 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
         if (!Number.isInteger(btn.hid_delay_ms) || btn.hid_delay_ms < 1 || btn.hid_delay_ms > 5000) {
           errors.set(`buttons[${idx}].hid_delay_ms`, 'Delay must be between 1 and 5000 ms');
         }
+      }
+    } else if (msgType === 'tempo_tap') {
+      for (const field of ['tempo_tap_cc', 'tempo_tap_value', 'tempo_tuner_cc', 'tempo_tuner_on', 'tempo_tuner_off'] as const) {
+        if (btn[field] !== undefined) {
+          const err = validators.cc(btn[field]);
+          if (err) errors.set(`buttons[${idx}].${field}`, err);
+        }
+      }
+      for (const field of ['tempo_tap_channel', 'tempo_tuner_channel'] as const) {
+        if (btn[field] !== undefined) {
+          const err = validators.channel(btn[field]);
+          if (err) errors.set(`buttons[${idx}].${field}`, err);
+        }
+      }
+      if (btn.tempo_long_press_ms !== undefined) {
+        const err = validators.longPressMs(btn.tempo_long_press_ms);
+        if (err) errors.set(`buttons[${idx}].tempo_long_press_ms`, err);
       }
     }
 

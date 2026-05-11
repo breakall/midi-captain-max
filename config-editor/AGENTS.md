@@ -73,6 +73,8 @@ Save button → saveToDevice()
 - `note`: keeps `note`, `velocity_on`, `velocity_off`
 - `pc`: keeps `program`, `flash_ms` (only when `mode` is `flash` or unset)
 - `pc_inc`/`pc_dec`: keeps `pc_step`, `flash_ms` (only when `mode` is `flash` or unset)
+- `hid`: keeps HID action/key/modifier/delay fields
+- `tempo_tap`: keeps tap CC/value/channel, tuner CC/on/off/channel, and long-press threshold fields
 
 Also strips `display: {}` if no display fields were set.
 
@@ -94,6 +96,7 @@ Key constraints from `config.schema.json`:
 - **Channels**: 0-15 (displayed 1-16)
 - **MIDI bytes** (cc, note, program, velocity, etc.): 0-127
 - **pc_step**: 1-127; **keytimes**: 1-99; **flash_ms**: 50-5000
+- **tempo_long_press_ms**: 100-5000
 
 **Cross-field rules** (enforced by Rust + `tests/test_config_cross_fields.py`):
 - Button array length must match device type (std10=10, mini6=6, nano4=4, duo2=2, one1=1)

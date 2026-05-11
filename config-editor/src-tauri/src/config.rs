@@ -60,6 +60,7 @@ pub enum MessageType {
     PcInc,
     PcDec,
     Hid,
+    TempoTap,
 }
 
 /// HID action for a button
@@ -173,6 +174,23 @@ pub struct ButtonConfig {
     pub hid_modifier: Option<HidModifier>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hid_delay_ms: Option<u16>,
+    // Tempo tap/tuner fields (type="tempo_tap")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tempo_tap_cc: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tempo_tap_value: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tempo_tap_channel: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tempo_tuner_cc: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tempo_tuner_on: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tempo_tuner_off: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tempo_tuner_channel: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tempo_long_press_ms: Option<u16>,
 }
 
 fn is_default_off_mode(mode: &OffMode) -> bool {
@@ -395,6 +413,21 @@ impl MidiCaptainConfig {
             if let Some(ms) = button.flash_ms {
                 if ms < 50 || ms > 5000 {
                     errors.push(format!("Button {} flash_ms {} out of range (50-5000)", i + 1, ms));
+                }
+            }
+            if let Some(ch) = button.tempo_tap_channel {
+                if ch > 15 {
+                    errors.push(format!("Button {} tempo tap channel {} is invalid (must be 1-16)", i + 1, ch + 1));
+                }
+            }
+            if let Some(ch) = button.tempo_tuner_channel {
+                if ch > 15 {
+                    errors.push(format!("Button {} tempo tuner channel {} is invalid (must be 1-16)", i + 1, ch + 1));
+                }
+            }
+            if let Some(ms) = button.tempo_long_press_ms {
+                if ms < 100 || ms > 5000 {
+                    errors.push(format!("Button {} tempo_long_press_ms {} out of range (100-5000)", i + 1, ms));
                 }
             }
         }
@@ -632,6 +665,40 @@ mod tests {
         let config2: MidiCaptainConfig = serde_json::from_str(&reserialized).unwrap();
         assert_eq!(config2.buttons[0].pc_step, Some(5));
         assert_eq!(config2.buttons[1].pc_step, Some(2));
+    }
+
+    #[test]
+    fn test_roundtrip_tempo_tap_button() {
+        let json = r#"{
+            "buttons": [
+                {
+                    "label": "TAP",
+                    "type": "tempo_tap",
+                    "color": "red",
+                    "tempo_tap_cc": 63,
+                    "tempo_tap_value": 127,
+                    "tempo_tap_channel": 0,
+                    "tempo_tuner_cc": 68,
+                    "tempo_tuner_on": 127,
+                    "tempo_tuner_off": 0,
+                    "tempo_tuner_channel": 0,
+                    "tempo_long_press_ms": 700
+                }
+            ]
+        }"#;
+
+        let config: MidiCaptainConfig = serde_json::from_str(json).unwrap();
+        let btn = &config.buttons[0];
+        assert_eq!(btn.message_type, MessageType::TempoTap);
+        assert_eq!(btn.tempo_tap_cc, Some(63));
+        assert_eq!(btn.tempo_tuner_cc, Some(68));
+        assert_eq!(btn.tempo_long_press_ms, Some(700));
+
+        let reserialized = serde_json::to_string(&config).unwrap();
+        let config2: MidiCaptainConfig = serde_json::from_str(&reserialized).unwrap();
+        assert_eq!(config2.buttons[0].message_type, MessageType::TempoTap);
+        assert_eq!(config2.buttons[0].tempo_tap_value, Some(127));
+        assert_eq!(config2.buttons[0].tempo_tuner_off, Some(0));
     }
 
     #[test]

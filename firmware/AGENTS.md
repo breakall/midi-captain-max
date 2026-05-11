@@ -187,10 +187,21 @@ All outgoing MIDI goes through `midi_send(msg)` which writes to both USB and 5-p
 - `"pc"` + select → calls `handle_pc_select_press`: sends PC, calls `update_select_group`
 - `"pc_inc"` / `"pc_dec"` + pressed only → increments/decrements `pc_values[channel]`, sends PC, flashes
 - `"hid"` + pressed only → calls `dispatch_hid(...)`, flashes LED
+- `"tempo_tap"` + short release → sends configured tap CC; long press → toggles configured tuner CC; incoming MIDI Clock drives that button's blink LED
 
 `pc_values` is a 16-element array (one per MIDI channel), shared across all pc_inc/dec buttons.
 
 Keytimes: `btn_state.advance_keytime()` is called before reading `state_cfg`, so per-state overrides are applied from `btn_config["states"][keytime_index]` via `get_button_state_config()`.
+
+### Tempo Tap Button Type
+
+The `"tempo_tap"` message type is a generic tap-tempo/tuner control:
+
+- `tempo_tap_cc`, `tempo_tap_value`, `tempo_tap_channel` define the short-press CC output. The channel inherits the button channel if omitted.
+- `tempo_tuner_cc`, `tempo_tuner_on`, `tempo_tuner_off`, `tempo_tuner_channel` define the long-press tuner toggle output. The channel inherits the button channel if omitted.
+- `tempo_long_press_ms` is clamped to 100-5000 ms and defaults to 700 ms.
+- Long press fires once while held and suppresses the short-tap output on release.
+- Incoming MIDI `TimingClock` is 24 PPQN; tempo tap LEDs blink once per quarter note and continue at the last valid clock-derived tempo.
 
 ### PC Button LED Modes
 

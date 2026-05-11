@@ -58,7 +58,7 @@ export interface ButtonConfig {
   /**
    * MIDI message type. Determines which fields apply. Default: 'cc'.
    */
-  type?: "cc" | "note" | "pc" | "pc_inc" | "pc_dec" | "hid";
+  type?: "cc" | "note" | "pc" | "pc_inc" | "pc_dec" | "hid" | "tempo_tap";
   /**
    * Button behavior. 'toggle' = latching LED on/off, 'momentary' = LED on while held, 'flash' = brief LED flash on press (PC types only, default for PC types), 'select' = radio-group exclusivity (PC and CC only, requires select_group). Default for CC/Note/HID: 'toggle'.
    */
@@ -139,6 +139,38 @@ export interface ButtonConfig {
    * Delay duration in milliseconds. Used when type='hid' and hid_action='delay'.
    */
   hid_delay_ms?: number;
+  /**
+   * Standard MIDI byte value (0-127).
+   */
+  tempo_tap_cc?: number;
+  /**
+   * Standard MIDI byte value (0-127).
+   */
+  tempo_tap_value?: number;
+  /**
+   * MIDI channel for short tempo tap output. Inherits button channel if omitted.
+   */
+  tempo_tap_channel?: number;
+  /**
+   * Standard MIDI byte value (0-127).
+   */
+  tempo_tuner_cc?: number;
+  /**
+   * Standard MIDI byte value (0-127).
+   */
+  tempo_tuner_on?: number;
+  /**
+   * Standard MIDI byte value (0-127).
+   */
+  tempo_tuner_off?: number;
+  /**
+   * MIDI channel for tuner toggle output. Inherits button channel if omitted.
+   */
+  tempo_tuner_channel?: number;
+  /**
+   * Hold duration in milliseconds that triggers the tuner toggle instead of a tap. Used when type='tempo_tap'.
+   */
+  tempo_long_press_ms?: number;
 }
 /**
  * Per-state overrides applied when cycling through keytimes. All fields optional — only specified fields override the base button config.

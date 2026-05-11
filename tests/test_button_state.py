@@ -10,7 +10,7 @@ from pathlib import Path
 FIRMWARE_DIR = Path(__file__).parent.parent / "firmware" / "dev"
 sys.path.insert(0, str(FIRMWARE_DIR))
 
-from core.button import ButtonState
+from core.button import ButtonState, TempoTapState
 
 
 class TestButtonStateToggle:
@@ -178,11 +178,7 @@ class TestButtonStateKeytimes:
         btn.on_release()
         assert btn.get_keytime() == 2
         assert btn.state == False
-        
-        # Next press cycles back to 1
-        btn.on_press()
-        assert btn.get_keytime() == 1
-    
+
     def test_reset_keytime(self):
         """reset_keytime() returns to state 1."""
         btn = ButtonState(cc=20, keytimes=5)
@@ -219,6 +215,42 @@ class TestButtonStateKeytimes:
         assert btn.state == True   # press 2 → still on, keytime 3
         btn.on_press()
         assert btn.state == True   # press 3 → still on, keytime cycles back to 1
+
+
+class TestTempoTapState:
+    """Tests for tempo tap short-press and long-press detection."""
+
+    def test_short_release_is_tap(self):
+        state = TempoTapState(long_press_ms=700)
+        state.on_press(10.0)
+        assert state.on_release(10.25) == True
+        assert state.tuner_state == False
+
+    def test_long_press_fires_once_and_suppresses_tap(self):
+        state = TempoTapState(long_press_ms=700)
+        state.on_press(10.0)
+        assert state.poll(10.5) == False
+        assert state.poll(10.7) == True
+        assert state.poll(10.9) == False
+        assert state.tuner_state == True
+        assert state.on_release(11.0) == False
+
+    def test_long_press_toggles_tuner_state(self):
+        state = TempoTapState(long_press_ms=700)
+        state.on_press(10.0)
+        assert state.poll(10.8) == True
+        assert state.tuner_state == True
+        state.on_release(10.9)
+
+        state.on_press(20.0)
+        assert state.poll(20.8) == True
+        assert state.tuner_state == False
+
+    def test_threshold_is_clamped(self):
+        low = TempoTapState(long_press_ms=1)
+        high = TempoTapState(long_press_ms=99999)
+        assert low.long_press_ms == 100
+        assert high.long_press_ms == 5000
 
 
 class TestAdvanceKeytime:

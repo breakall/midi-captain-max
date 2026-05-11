@@ -257,3 +257,33 @@ class TestHidButtonValidation:
       config = {"buttons": [{"label": "K", "color": "red",
                              "type": "hid", "hid_action": action}]}
       assert validator.is_valid(config), f"action {action!r} should be valid"
+
+
+class TestTempoTapButtonValidation:
+  """Schema validation for tempo tap button type."""
+
+  def test_valid_tempo_tap_button(self, validator):
+    config = {"buttons": [{
+      "label": "TAP",
+      "color": "red",
+      "type": "tempo_tap",
+      "tempo_tap_cc": 63,
+      "tempo_tap_value": 127,
+      "tempo_tap_channel": 0,
+      "tempo_tuner_cc": 68,
+      "tempo_tuner_on": 127,
+      "tempo_tuner_off": 0,
+      "tempo_tuner_channel": 0,
+      "tempo_long_press_ms": 700,
+    }]}
+    assert validator.is_valid(config)
+
+  def test_tempo_long_press_ms_too_low(self, validator):
+    config = {"buttons": [{"label": "TAP", "color": "red",
+                           "type": "tempo_tap", "tempo_long_press_ms": 99}]}
+    assert not validator.is_valid(config)
+
+  def test_tempo_tap_channel_over_15(self, validator):
+    config = {"buttons": [{"label": "TAP", "color": "red",
+                           "type": "tempo_tap", "tempo_tap_channel": 16}]}
+    assert not validator.is_valid(config)

@@ -15,6 +15,7 @@ Momentary and toggle modes are currently supported. Many more features are comin
 - **Dev Mode** - Quickly test config changes without remounting the device
 - **Custom Drive Names** - Useful when managing multiple Captains
 - **HID Messages** - send keyboard and mouse messages in addition to MIDI
+- **Tempo Tap/Tuner Buttons** - Short press sends tap tempo, long press toggles tuner, incoming MIDI Clock drives LED blink
 - **Signed Installation Packages** — Install without security warnings or manual overrides (macOS and Linux)
 - **Stage-ready** — No unexpected resets, no crashes, no surprises
 
@@ -158,6 +159,30 @@ Each state in the `states` array can override:
 - Works with both toggle and momentary modes
 - When cycling, the button always sends the `cc_on` value for the current state
 
+### Advanced: Tempo Tap/Tuner Button
+
+Set a button's `type` to `tempo_tap` to combine three tempo-related behaviors on one physical switch:
+
+- Short press/release sends a configurable tap-tempo CC message.
+- Long press toggles a configurable tuner CC message.
+- Incoming MIDI Clock makes the same button LED blink at the current quarter-note tempo.
+
+```json
+{
+  "label": "TAP",
+  "type": "tempo_tap",
+  "color": "red",
+  "tempo_tap_cc": 63,
+  "tempo_tap_value": 127,
+  "tempo_tuner_cc": 68,
+  "tempo_tuner_on": 127,
+  "tempo_tuner_off": 0,
+  "tempo_long_press_ms": 700
+}
+```
+
+`tempo_tap_channel` and `tempo_tuner_channel` are optional. When omitted, they inherit the button/global MIDI channel.
+
 ## Use Cases
 
 - **Gig Performer / MainStage** — Sync button states with plugin bypass
@@ -179,4 +204,3 @@ This project builds on work by **Helmut Keller** ([hfrk.de](https://hfrk.de)), w
 ## Questions, Comments, Suggestions are welcome
 
 [Open an issue](https://github.com/MC-Music-Workshop/midi-captain-max/issues) or check [AGENTS.md](AGENTS.md) for developer documentation.
-

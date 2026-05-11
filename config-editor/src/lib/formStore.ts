@@ -368,8 +368,14 @@ export function setDevice(deviceType: DeviceType) {
 function normalizeButton(btn: ButtonConfig): ButtonConfig {
   const type = btn.type ?? 'cc';
   const { cc, cc_on, cc_off, note, velocity_on, velocity_off, program, pc_step, flash_ms,
-          hid_action, hid_key, hid_modifier, hid_delay_ms,
+          hid_action, hid_key, hid_modifier, hid_delay_ms, tempo_tap_cc, tempo_tap_value,
+          tempo_tap_channel, tempo_tuner_cc, tempo_tuner_on, tempo_tuner_off,
+          tempo_tuner_channel, tempo_long_press_ms, keytimes, states,
           select_group, select_repress, ...common } = btn;
+  const keytimeFields = {
+    ...(keytimes !== undefined && { keytimes }),
+    ...(states !== undefined && { states }),
+  };
 
   // Select mode (radio-group) is valid only on PC and CC. select_group/select_repress
   // are stripped on serialize when mode != 'select' so the JSON stays clean even if
@@ -384,6 +390,7 @@ function normalizeButton(btn: ButtonConfig): ButtonConfig {
     case 'cc':
       return {
         ...common,
+        ...keytimeFields,
         ...(cc !== undefined && { cc }),
         ...(cc_on !== undefined && { cc_on }),
         ...(cc_off !== undefined && { cc_off }),
@@ -392,6 +399,7 @@ function normalizeButton(btn: ButtonConfig): ButtonConfig {
     case 'note':
       return {
         ...common,
+        ...keytimeFields,
         ...(note !== undefined && { note }),
         ...(velocity_on !== undefined && { velocity_on }),
         ...(velocity_off !== undefined && { velocity_off }),
@@ -400,6 +408,7 @@ function normalizeButton(btn: ButtonConfig): ButtonConfig {
       const pcFlashMode = common.mode === undefined || common.mode === 'flash';
       return {
         ...common,
+        ...keytimeFields,
         ...(program !== undefined && { program }),
         ...(pcFlashMode && flash_ms !== undefined && { flash_ms }),
         ...selectFields,
@@ -410,6 +419,7 @@ function normalizeButton(btn: ButtonConfig): ButtonConfig {
       const pcFlashMode = common.mode === undefined || common.mode === 'flash';
       return {
         ...common,
+        ...keytimeFields,
         ...(pc_step !== undefined && { pc_step }),
         ...(pcFlashMode && flash_ms !== undefined && { flash_ms }),
       };
@@ -417,10 +427,23 @@ function normalizeButton(btn: ButtonConfig): ButtonConfig {
     case 'hid':
       return {
         ...common,
+        ...keytimeFields,
         ...(hid_action !== undefined && { hid_action }),
         ...(hid_key !== undefined && { hid_key }),
         ...(hid_modifier !== undefined && { hid_modifier }),
         ...(hid_delay_ms !== undefined && { hid_delay_ms }),
+      };
+    case 'tempo_tap':
+      return {
+        ...common,
+        ...(tempo_tap_cc !== undefined && { tempo_tap_cc }),
+        ...(tempo_tap_value !== undefined && { tempo_tap_value }),
+        ...(tempo_tap_channel !== undefined && { tempo_tap_channel }),
+        ...(tempo_tuner_cc !== undefined && { tempo_tuner_cc }),
+        ...(tempo_tuner_on !== undefined && { tempo_tuner_on }),
+        ...(tempo_tuner_off !== undefined && { tempo_tuner_off }),
+        ...(tempo_tuner_channel !== undefined && { tempo_tuner_channel }),
+        ...(tempo_long_press_ms !== undefined && { tempo_long_press_ms }),
       };
     default:
       return btn;

@@ -384,6 +384,40 @@ class TestButtonMessageTypes:
         btn = validate_button({"type": "pc", "program": 0}, index=0)
         assert "flash_ms" not in btn
 
+    def test_tempo_tap_type_defaults(self):
+        btn = validate_button({"type": "tempo_tap"}, index=0)
+        assert btn["type"] == "tempo_tap"
+        assert btn["mode"] == "toggle"
+        assert btn["tempo_tap_cc"] == 63
+        assert btn["tempo_tap_value"] == 127
+        assert btn["tempo_tap_channel"] == 0
+        assert btn["tempo_tuner_cc"] == 68
+        assert btn["tempo_tuner_on"] == 127
+        assert btn["tempo_tuner_off"] == 0
+        assert btn["tempo_tuner_channel"] == 0
+        assert btn["tempo_long_press_ms"] == 700
+
+    def test_tempo_tap_type_clamps_fields(self):
+        btn = validate_button({
+            "type": "tempo_tap",
+            "tempo_tap_cc": 200,
+            "tempo_tap_value": -1,
+            "tempo_tap_channel": 99,
+            "tempo_tuner_cc": -5,
+            "tempo_tuner_on": 999,
+            "tempo_tuner_off": "bad",
+            "tempo_tuner_channel": -1,
+            "tempo_long_press_ms": 99999,
+        }, index=0)
+        assert btn["tempo_tap_cc"] == 127
+        assert btn["tempo_tap_value"] == 0
+        assert btn["tempo_tap_channel"] == 15
+        assert btn["tempo_tuner_cc"] == 0
+        assert btn["tempo_tuner_on"] == 127
+        assert btn["tempo_tuner_off"] == 0
+        assert btn["tempo_tuner_channel"] == 0
+        assert btn["tempo_long_press_ms"] == 5000
+
     def test_invalid_type_falls_back_to_cc(self):
         btn = validate_button({"type": "invalid_type"}, index=0)
         assert btn["type"] == "cc"

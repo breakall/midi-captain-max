@@ -152,3 +152,44 @@ class ButtonState:
         """Reset keytime cycle back to position 1."""
         self.current_keytime = 1
         self._state = False
+
+
+class TempoTapState:
+    """Tracks short-tap vs long-press behavior for tempo/tuner buttons."""
+
+    def __init__(self, long_press_ms=700):
+        """Initialize tempo tap state.
+
+        Args:
+            long_press_ms: Hold duration that triggers the long-press action.
+        """
+        if not isinstance(long_press_ms, int):
+            long_press_ms = 700
+        self.long_press_ms = max(100, min(5000, long_press_ms))
+        self.pressed_at = None
+        self.long_press_fired = False
+        self.tuner_state = False
+
+    def on_press(self, now):
+        """Record button press time."""
+        self.pressed_at = now
+        self.long_press_fired = False
+
+    def poll(self, now):
+        """Return True once when the current hold reaches the long-press threshold."""
+        if self.pressed_at is None or self.long_press_fired:
+            return False
+        if (now - self.pressed_at) + 0.000001 >= (self.long_press_ms / 1000.0):
+            self.long_press_fired = True
+            self.tuner_state = not self.tuner_state
+            return True
+        return False
+
+    def on_release(self, now):
+        """Return True for a completed short tap, False otherwise."""
+        if self.pressed_at is None:
+            return False
+        is_tap = not self.long_press_fired and (now - self.pressed_at) + 0.000001 < (self.long_press_ms / 1000.0)
+        self.pressed_at = None
+        self.long_press_fired = False
+        return is_tap

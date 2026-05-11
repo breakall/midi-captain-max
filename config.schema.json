@@ -73,7 +73,7 @@
     },
     "MessageType": {
       "type": "string",
-      "enum": ["cc", "note", "pc", "pc_inc", "pc_dec", "hid"],
+      "enum": ["cc", "note", "pc", "pc_inc", "pc_dec", "hid", "tempo_tap"],
       "default": "cc"
     },
     "HidAction": {
@@ -256,6 +256,46 @@
           "minimum": 1,
           "maximum": 5000,
           "description": "Delay duration in milliseconds. Used when type='hid' and hid_action='delay'."
+        },
+        "tempo_tap_cc": {
+          "$ref": "#/definitions/MidiByte",
+          "default": 63,
+          "description": "CC number sent for a short tempo tap. Used when type='tempo_tap'."
+        },
+        "tempo_tap_value": {
+          "$ref": "#/definitions/MidiByte",
+          "default": 127,
+          "description": "CC value sent for a short tempo tap. Used when type='tempo_tap'."
+        },
+        "tempo_tap_channel": {
+          "$ref": "#/definitions/MidiChannel",
+          "description": "MIDI channel for short tempo tap output. Inherits button channel if omitted."
+        },
+        "tempo_tuner_cc": {
+          "$ref": "#/definitions/MidiByte",
+          "default": 68,
+          "description": "CC number sent when long press toggles tuner state. Used when type='tempo_tap'."
+        },
+        "tempo_tuner_on": {
+          "$ref": "#/definitions/MidiByte",
+          "default": 127,
+          "description": "CC value sent when tuner state toggles on. Used when type='tempo_tap'."
+        },
+        "tempo_tuner_off": {
+          "$ref": "#/definitions/MidiByte",
+          "default": 0,
+          "description": "CC value sent when tuner state toggles off. Used when type='tempo_tap'."
+        },
+        "tempo_tuner_channel": {
+          "$ref": "#/definitions/MidiChannel",
+          "description": "MIDI channel for tuner toggle output. Inherits button channel if omitted."
+        },
+        "tempo_long_press_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 5000,
+          "default": 700,
+          "description": "Hold duration in milliseconds that triggers the tuner toggle instead of a tap. Used when type='tempo_tap'."
         }
       },
       "additionalProperties": false
