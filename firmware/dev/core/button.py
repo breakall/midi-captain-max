@@ -186,10 +186,20 @@ class TempoTapState:
         return False
 
     def on_release(self, now):
-        """Return True for a completed short tap, False otherwise."""
+        """Return release action: "tap", "tuner_off", or None."""
         if self.pressed_at is None:
-            return False
-        is_tap = not self.long_press_fired and (now - self.pressed_at) + 0.000001 < (self.long_press_ms / 1000.0)
+            return None
+        is_short_release = (
+            not self.long_press_fired
+            and (now - self.pressed_at) + 0.000001 < (self.long_press_ms / 1000.0)
+        )
+        action = None
+        if is_short_release:
+            if self.tuner_state:
+                self.tuner_state = False
+                action = "tuner_off"
+            else:
+                action = "tap"
         self.pressed_at = None
         self.long_press_fired = False
-        return is_tap
+        return action

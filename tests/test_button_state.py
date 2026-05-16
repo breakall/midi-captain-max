@@ -223,7 +223,7 @@ class TestTempoTapState:
     def test_short_release_is_tap(self):
         state = TempoTapState(long_press_ms=700)
         state.on_press(10.0)
-        assert state.on_release(10.25) == True
+        assert state.on_release(10.25) == "tap"
         assert state.tuner_state == False
 
     def test_long_press_fires_once_and_suppresses_tap(self):
@@ -233,7 +233,7 @@ class TestTempoTapState:
         assert state.poll(10.7) == True
         assert state.poll(10.9) == False
         assert state.tuner_state == True
-        assert state.on_release(11.0) == False
+        assert state.on_release(11.0) == None
 
     def test_long_press_toggles_tuner_state(self):
         state = TempoTapState(long_press_ms=700)
@@ -244,6 +244,17 @@ class TestTempoTapState:
 
         state.on_press(20.0)
         assert state.poll(20.8) == True
+        assert state.tuner_state == False
+
+    def test_short_release_turns_tuner_off_when_active(self):
+        state = TempoTapState(long_press_ms=700)
+        state.on_press(10.0)
+        assert state.poll(10.8) == True
+        assert state.tuner_state == True
+        assert state.on_release(10.9) == None
+
+        state.on_press(20.0)
+        assert state.on_release(20.2) == "tuner_off"
         assert state.tuner_state == False
 
     def test_threshold_is_clamped(self):

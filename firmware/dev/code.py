@@ -1200,13 +1200,21 @@ def handle_switches():
                     tempo_state.on_press(now)
                     set_button_state(btn_num, True)
                 else:
-                    if tempo_state.on_release(now):
+                    release_action = tempo_state.on_release(now)
+                    if release_action == "tap":
                         cc = btn_config.get("tempo_tap_cc", 63)
                         val = btn_config.get("tempo_tap_value", 127)
                         tap_channel = btn_config.get("tempo_tap_channel", channel)
                         midi_send(ControlChange(cc, val), channel=tap_channel)
                         print(f"[MIDI TX] Ch{tap_channel+1} CC{cc}={val} (switch {btn_num}, tempo tap)")
                         update_status(f"TAP CC{cc}")
+                    elif release_action == "tuner_off":
+                        cc = btn_config.get("tempo_tuner_cc", 68)
+                        val = btn_config.get("tempo_tuner_off", 0)
+                        tuner_channel = btn_config.get("tempo_tuner_channel", channel)
+                        midi_send(ControlChange(cc, val), channel=tuner_channel)
+                        print(f"[MIDI TX] Ch{tuner_channel+1} CC{cc}={val} (switch {btn_num}, tempo tuner off)")
+                        update_status("TUNER OFF")
                     set_button_state(btn_num, tempo_blink_on if tempo_has_clock else False)
 
             elif message_type == "hid" and pressed:
